@@ -19,8 +19,18 @@ every host at that one checkout, so re-running the command updates all of them.
 | `--hosts claude,codex` | skip the picker, install into these only |
 | `--yes`, `-y` | skip the picker, use every detected host |
 | `--ref <ref>` | check out a specific branch or tag |
+| `--dry-run` | print the exact plan — every command, hook and symlink — and change nothing |
 | `--uninstall` | remove host wiring; the checkout and run state stay |
 | `--help`, `-h` | usage |
+
+`--dry-run` combines with `--uninstall` too, and touches nothing at all: no
+clone, no fetch, no config write. It is the way to see what a run would do to
+your hosts before letting it.
+
+The checkout at `~/.omni-pipeline/src` must be clean and up to date with its
+upstream. If it is dirty, detached, on a branch with no upstream, or carrying
+commits the remote does not have, the installer says so and wires nothing —
+rather than silently pointing every host at stale code.
 
 A host that is not on your `PATH` shows in the picker but cannot be selected,
 except when uninstalling — you can always unwire a host whose binary you have

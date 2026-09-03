@@ -59,3 +59,44 @@ test("every complaint says where the checkout is and how to reset it", () => {
 		expect(c).toContain("Nothing was wired")
 	}
 })
+
+// --- --dry-run -------------------------------------------------------------
+
+// @ts-expect-error — install.mjs is plain JS on purpose.
+import { dryRunPlan, parseArgs } from "../install.mjs"
+
+test("--dry-run parses, and is off unless asked for", () => {
+	expect(parseArgs(["--dry-run"]).dryRun).toBe(true)
+	expect(parseArgs([]).dryRun).toBe(false)
+	expect(parseArgs(["--dry-run", "--hosts", "claude"]).hosts).toEqual(["claude"])
+})
+
+const src = "/home/u/.omni-pipeline/src"
+
+test("the install plan names every host's real target, and writes nothing", () => {
+	const lines = dryRunPlan({ chosen: ["claude", "codex", "opencode"], src, uninstall: false, exists: true }).join("\n")
+	expect(lines).toContain("claude plugin marketplace add")
+	expect(lines).toContain("hooks.json")
+	expect(lines).toContain("OMNI_HOST=codex")
+	expect(lines).toContain("omni-gatekeeper.ts")
+	expect(lines).toContain("skills/pipeline")
+	expect(lines).toContain("nothing was written")
+})
+
+test("the plan says update when the checkout exists and clone when it does not", () => {
+	expect(dryRunPlan({ chosen: ["claude"], src, uninstall: false, exists: true }).join("\n")).toContain("would update")
+	expect(dryRunPlan({ chosen: ["claude"], src, uninstall: false, exists: false }).join("\n")).toContain("would clone")
+})
+
+test("a host that was not chosen is absent from the plan", () => {
+	const lines = dryRunPlan({ chosen: ["claude"], src, uninstall: false, exists: true }).join("\n")
+	expect(lines).not.toContain("OMNI_HOST=codex")
+	expect(lines).not.toContain("omni-gatekeeper.ts")
+})
+
+test("the uninstall plan describes removals, not installs", () => {
+	const lines = dryRunPlan({ chosen: ["codex", "opencode"], src, uninstall: true, exists: true }).join("\n")
+	expect(lines).toContain("would remove")
+	expect(lines).not.toContain("marketplace add")
+	expect(lines).toContain("nothing was written")
+})

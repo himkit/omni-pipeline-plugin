@@ -68,10 +68,11 @@ export const HOSTS = [
 ]
 
 export function parseArgs(argv) {
-  const out = { hosts: null, yes: false, ref: null, uninstall: false }
+  const out = { hosts: null, yes: false, ref: null, uninstall: false, dryRun: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === "--uninstall") out.uninstall = true
+    else if (a === "--dry-run") out.dryRun = true
     else if (a === "--yes" || a === "-y") out.yes = true
     else if (a === "--hosts") out.hosts = (argv[++i] || "").split(",").map((s) => s.trim()).filter(Boolean)
     else if (a.startsWith("--hosts=")) out.hosts = a.slice(8).split(",").map((s) => s.trim()).filter(Boolean)
@@ -100,6 +101,7 @@ function usage() {
     --hosts a,b     install into these hosts only (claude, codex, opencode)
     --yes, -y       skip the picker, use every detected host
     --ref <ref>     git ref to check out (default: the repo's default branch)
+    --dry-run       print what would be done and change nothing
     --uninstall     remove host wiring; leaves ${omniHome()} untouched
     --help, -h      this text
 `)
@@ -316,6 +318,46 @@ export function opencodeLinks(src, dest) {
   // must equal the frontmatter name. So link the directory, not the file.
   links.push({ from: path.join(src, "skills", "pipeline"), to: path.join(dest, "skills", "pipeline") })
   return links
+}
+
+// Pure: the exact set of things a real run would touch, as lines to print.
+// Exists so --dry-run can be tested, and so the plan is derived from the same
+// helpers the real install uses rather than a prose duplicate that drifts.
+export function dryRunPlan({ chosen, src, uninstall, exists }) {
+  const verb = uninstall ? "would remove" : "would install"
+  const lines = [`  ${DIM}dry run — nothing was written${RESET}`, ""]
+
+  if (!uninstall) {
+    lines.push(exists ? `  would update the checkout at ${src}` : `  would clone ${REPO} into ${src}`)
+    lines.push("")
+  }
+
+  for (const id of chosen) {
+    const host = HOSTS.find((h) => h.id === id)
+    if (!host) continue
+    if (id === "claude") {
+      lines.push(uninstall
+        ? `  claude    ${verb} ${PLUGIN}@${MARKETPLACE}, then the marketplace entry`
+        : `  claude    ${verb} ${PLUGIN}@${MARKETPLACE} via:`)
+      if (!uninstall) {
+        lines.push(`    ${DIM}claude plugin marketplace add ${src}${RESET}`)
+        lines.push(`    ${DIM}claude plugin install ${PLUGIN}@${MARKETPLACE}${RESET}`)
+      }
+    } else if (id === "codex") {
+      const file = path.join(host.configDir, "hooks.json")
+      lines.push(uninstall
+        ? `  codex     ${verb} the omni Stop hook from ${shortPath(file)}`
+        : `  codex     ${verb} ${PLUGIN}@${MARKETPLACE}, and add a Stop hook to ${shortPath(file)}:`)
+      if (!uninstall) lines.push(`    ${DIM}${codexHookCommand(src)}${RESET}`)
+    } else if (id === "opencode") {
+      const links = opencodeLinks(src, host.configDir)
+      lines.push(`  opencode  ${verb} ${links.length} symlink(s) under ${shortPath(host.configDir)}:`)
+      for (const { to } of links) lines.push(`    ${DIM}${shortPath(to)}${RESET}`)
+    }
+  }
+
+  lines.push("", `  ${DIM}re-run without --dry-run to apply this.${RESET}`)
+  return lines
 }
 
 async function isSymlink(p) {
@@ -608,6 +650,14 @@ async function main() {
   const chosen = await pickHosts(detected, args)
   if (chosen.length === 0) {
     console.log("  nothing selected. done.")
+    return
+  }
+
+  if (args.dryRun) {
+    console.log("")
+    const exists = await dirExists(path.join(srcDir(), ".git"))
+    for (const line of dryRunPlan({ chosen, src: srcDir(), uninstall: args.uninstall, exists }))
+      console.log(line)
     return
   }
 
