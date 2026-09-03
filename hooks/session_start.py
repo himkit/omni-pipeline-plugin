@@ -12,10 +12,13 @@ import os
 import sys
 
 RUNNING_PHASES = {"planning", "implementing", "reviewing", "delivering"}
-RUNS_DIR = os.environ.get("OMNI_RUNS_DIR") or os.path.expanduser(
-    "~/.claude/omni-plugins/runs")
-HOST = "claude"
-KNOWN_HOSTS = ("claude", "opencode")
+OMNI_HOME = os.environ.get("OMNI_HOME") or os.path.expanduser("~/.omni-pipeline")
+RUNS_DIR = os.path.join(OMNI_HOME, "runs")
+# See hooks/gatekeeper.py: OMNI_HOST names the host running this hook, so a
+# run's owner is attributed to the right one. Unset means Claude Code.
+KNOWN_HOSTS = ("claude", "codex", "opencode")
+_HOST = (os.environ.get("OMNI_HOST") or "").strip().lower()
+HOST = _HOST if _HOST in KNOWN_HOSTS else "claude"
 
 
 def inside(cwd, base):

@@ -24,7 +24,7 @@
  *   run blocked and let the session rest. `stop_blocks` is a display mirror for
  *   /omni-status: written here, never trusted here.
  *
- * State lives in ~/.claude/omni-plugins/runs/, shared with Claude Code, so
+ * State lives in ~/.omni-pipeline/runs/, shared with Claude Code, so
  * /omni-status and /omni-resume see the same runs from either host.
  */
 
@@ -35,8 +35,8 @@ import type { Plugin } from "@opencode-ai/plugin"
 
 const RUNNING_PHASES = new Set(["planning", "implementing", "reviewing", "delivering"])
 const MAX_CONSECUTIVE_BLOCKS = 15
-const RUNS_DIR =
-	process.env.OMNI_RUNS_DIR || path.join(os.homedir(), ".claude", "omni-plugins", "runs")
+const OMNI_HOME = process.env.OMNI_HOME || path.join(os.homedir(), ".omni-pipeline")
+const RUNS_DIR = path.join(OMNI_HOME, "runs")
 const HOST_PREFIX = "opencode-"
 const KNOWN_PREFIXES = ["claude-", "opencode-"] as const
 const TAKEOVER_TTL_SEC = 300

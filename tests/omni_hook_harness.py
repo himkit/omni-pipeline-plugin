@@ -31,8 +31,10 @@ DEFAULT_STATE = {
 
 class HookCase(unittest.TestCase):
     def setUp(self):
-        self.runs = tempfile.mkdtemp(prefix="omni-runs-")
-        self.addCleanup(shutil.rmtree, self.runs, ignore_errors=True)
+        self.home = tempfile.mkdtemp(prefix="omni-home-")
+        self.addCleanup(shutil.rmtree, self.home, ignore_errors=True)
+        self.runs = os.path.join(self.home, "runs")
+        os.makedirs(self.runs, exist_ok=True)
 
     def write_run(self, slug, **fields):
         """Create runs/<slug>/state.json. Any field can be overridden; passing
@@ -51,18 +53,23 @@ class HookCase(unittest.TestCase):
             return json.load(f)
 
     def run_hook(self, hook="gatekeeper.py", session_id="s1", cwd="/repo",
-                 event="Stop"):
-        """Returns the hook's stdout parsed as JSON, or {} when it printed nothing."""
+                 event="Stop", env=None):
+        """Returns the hook's stdout parsed as JSON, or {} when it printed nothing.
+
+        `env` adds/overrides environment variables for the hook process, which is
+        how a host other than the default (OMNI_HOST) is exercised.
+        """
         payload = json.dumps({
             "session_id": session_id,
             "cwd": cwd,
             "hook_event_name": event,
             "transcript_path": "/dev/null",
         })
-        env = dict(os.environ, OMNI_RUNS_DIR=self.runs)
+        hook_env = dict(os.environ, OMNI_HOME=self.home)
+        hook_env.update(env or {})
         proc = subprocess.run(
             [sys.executable, os.path.join(HOOKS_DIR, hook)],
-            input=payload, capture_output=True, text=True, env=env)
+            input=payload, capture_output=True, text=True, env=hook_env)
         self.assertEqual(proc.returncode, 0,
                          "hooks must always exit 0; stderr=%s" % proc.stderr)
         out = proc.stdout.strip()

@@ -12,8 +12,8 @@ permission:
   # is zero-touch — an external_directory prompt there would stall the run.
   external_directory:
     "*": ask
-    "~/.claude/omni-plugins/*": allow
-    "~/.claude/omni-plugins/**": allow
+    "~/.omni-pipeline/*": allow
+    "~/.omni-pipeline/**": allow
 ---
 
 You are the omni pipeline orchestrator.
@@ -38,5 +38,5 @@ Host-specific notes for opencode:
   The plugin counts those nudges itself; its state fields (`gk_blocks`,
   `gk_fingerprint`, `stop_blocks`, `adopt_offers`, `resume_cwd`) are not
   yours to write.
-- Everything else — the run directory under `~/.claude/omni-plugins/runs/`,
+- Everything else — the run directory under `~/.omni-pipeline/runs/`,
   `state.json` discipline, the binding handshake — is identical to Claude Code.

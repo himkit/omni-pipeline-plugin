@@ -6,37 +6,52 @@ locked spec, then plans, implements test-first, reviews and delivers on an
 
 ## Install
 
-### Claude Code
-
 ```bash
-claude plugin marketplace add https://github.com/himkit/omni-pipeline-plugin.git
+npx github:himkit/omni-pipeline-plugin
 ```
 
-```bash
-claude plugin install omni@omni-pipeline-plugin
-```
+Pick which coding agents to wire up — Claude Code, codex, opencode — and the
+installer does the rest. It clones itself to `~/.omni-pipeline/src` and points
+every host at that one checkout, so re-running the command updates all of them.
 
-### opencode
+| Flag | Effect |
+|---|---|
+| `--hosts claude,codex` | skip the picker, install into these only |
+| `--yes` | skip the picker, use every detected host |
+| `--ref <ref>` | check out a specific branch or tag |
+| `--uninstall` | remove host wiring; run state is kept |
 
-omni needs more than a skills path: subagents, slash commands, and a
-replacement for the Claude Code Stop hook. Clone the repo somewhere permanent,
-then run the installer, which links everything (including the skill) into
-`~/.config/opencode`:
+`OMNI_HOME` relocates the checkout and the state the hooks resolve — it exists
+primarily as the seam the test suite writes through. It does **not** relocate a
+whole install on its own: the prompts hardcode the default path, so moving a
+live install also means editing the paths in `skills/pipeline/SKILL.md`, the
+`/omni-*` commands, and the permission globs in `.opencode-plugin/agents/omni.md`.
 
-```bash
-./.opencode-plugin/install.sh
-```
-
-The gatekeeper becomes a plugin that re-prompts the session on `session.idle`
-instead of blocking a stop, and the subagents are renamed `omni-planner` /
-`omni-implementer` / `omni-reviewer` because opencode has one flat agent
-namespace. Run state is shared with Claude Code in
-`~/.claude/omni-plugins/runs/`. See
+opencode gets more than a skills path: subagents, slash commands, and a
+replacement for the Claude Code Stop hook, all symlinked from the
+`~/.omni-pipeline/src` checkout into `~/.config/opencode` (honouring
+`$OPENCODE_CONFIG_DIR`). The gatekeeper becomes a plugin that re-prompts the
+session on `session.idle` instead of blocking a stop, and the subagents are
+renamed `omni-planner` / `omni-implementer` / `omni-reviewer` because opencode
+has one flat agent namespace. Run state is shared with Claude Code in
+`~/.omni-pipeline/runs/`. See
 [`.opencode-plugin/README.md`](.opencode-plugin/README.md) for the details.
 
 A copy of the skill that also exists in `~/.claude/skills/pipeline/` (or a path
 already listed in opencode's config) shadows the one this plugin installs.
 Remove the old copy if the plugin's version does not take effect.
+
+### Codex
+
+Codex ignores a plugin's own `hooks/hooks.json`, so the installer registers
+the gatekeeper in `~/.codex/hooks.json` instead (backed up first, and fenced
+so `--uninstall` removes exactly what it added). Its `Stop` hook is expected to
+block the way Claude Code's does — inferred from the CLI's own hook vocabulary
+and error strings, not from an observed `codex exec` run.
+
+Only `Stop` is wired for codex. There is no `SessionStart` hook, so a codex
+session does not get the "unfinished run in this directory" reminder that
+Claude Code prints.
 
 ## Commands
 
@@ -118,7 +133,7 @@ reminder. `/omni-abort` is the off switch.
 
 ## Where state lives
 
-`~/.claude/omni-plugins/runs/<date>-<repo>-<feature>/` — outside your repo, so
+`~/.omni-pipeline/runs/<date>-<repo>-<feature>/` — outside your repo, so
 nothing pollutes the tree and parallel runs across repos never collide.
 
 | File | What |
@@ -131,3 +146,12 @@ nothing pollutes the tree and parallel runs across repos never collide.
 Claude Code and opencode share this directory, so `/omni-status` in one sees
 runs started by the other. A run is only resumable from the host that started
 it.
+
+Upgrading from a version that stored state in `~/.claude/omni-plugins/`? Move
+your runs once — there is no automatic migration:
+
+    mkdir -p ~/.omni-pipeline && mv ~/.claude/omni-plugins/runs ~/.omni-pipeline/runs
+
+`OMNI_HOME` moves this directory and the checkout for the hooks and the
+installer. The prompts do not read it, so see the note under
+[Install](#install) before relocating a live install.

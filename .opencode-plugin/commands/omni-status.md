@@ -3,7 +3,7 @@ description: Scoreboard for omni runs — phase, task progress, review iteration
 agent: omni
 ---
 
-Show the state of omni runs from `~/.claude/omni-plugins/runs/*/state.json`.
+Show the state of omni runs from `~/.omni-pipeline/runs/*/state.json`.
 
 1. Read every `state.json` (with the argument `$ARGUMENTS` as a run-id filter
    if given). No runs directory or no matches → say so and stop.

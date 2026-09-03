@@ -4,7 +4,7 @@ agent: omni
 ---
 
 Abort the omni run matching `$ARGUMENTS` (no argument: the single non-terminal
-run under `~/.claude/omni-plugins/runs/`; several candidates: list them and ask which).
+run under `~/.omni-pipeline/runs/`; several candidates: list them and ask which).
 
 1. Set `"phase": "aborted"` in its `state.json` immediately — this disarms the
    gatekeeper, nothing can stay trapped.
