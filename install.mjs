@@ -8,6 +8,7 @@ import * as os from "node:os"
 import * as path from "node:path"
 import { promisify } from "node:util"
 import { fileURLToPath } from "node:url"
+import { realpathSync } from "node:fs"
 
 const execFileAsync = promisify(execFile)
 const REPO = "https://github.com/himkit/omni-pipeline-plugin.git"
@@ -566,7 +567,18 @@ async function main() {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// npx runs the bin through a symlink in node_modules/.bin, so argv[1] is that
+// link and not this file. Comparing unresolved paths made the installer exit
+// silently under `npx`, which is the documented way to run it.
+function sameFile(a, b) {
+  try {
+    return realpathSync(a) === realpathSync(b)
+  } catch {
+    return path.resolve(a) === path.resolve(b)
+  }
+}
+
+if (process.argv[1] && sameFile(process.argv[1], fileURLToPath(import.meta.url))) {
   main().catch((err) => {
     console.error(err)
     process.exit(1)
