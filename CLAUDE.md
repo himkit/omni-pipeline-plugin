@@ -21,15 +21,17 @@ accepted as out of scope.
 
 ### Branch protection
 
-`main` has no ruleset yet. GitHub refuses to create one while the repo is
-private under a free org plan:
+The repo is public, and ruleset `protect-main` (id 22178947) is active on
+`main`:
 
-```
-Upgrade to GitHub Pro or make this repository public to enable this feature.
-```
+- `deletion` — the branch cannot be deleted
+- `non_fast_forward` — no force pushes
+- `pull_request` — changes land through a PR (0 approvals required)
 
-The intended ruleset — block force push, block deletion, require a PR before
-merge, repo admin bypass — applies as soon as the repo is public.
+Repo admins bypass all three (`bypass_mode: always`), so a direct push to
+`main` still works when you mean it. Note that the ruleset only exists because
+the repo is public: GitHub refuses rulesets on a private repo under a free org
+plan.
 
 ## Tests
 
