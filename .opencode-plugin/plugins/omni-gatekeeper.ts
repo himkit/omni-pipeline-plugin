@@ -37,8 +37,13 @@ const RUNNING_PHASES = new Set(["planning", "implementing", "reviewing", "delive
 const MAX_CONSECUTIVE_BLOCKS = 15
 const OMNI_HOME = process.env.OMNI_HOME || path.join(os.homedir(), ".omni-pipeline")
 const RUNS_DIR = path.join(OMNI_HOME, "runs")
+// This plugin only ever runs inside opencode, so HOST_PREFIX is fixed. The
+// known set is not: Claude Code, codex (via ~/.codex/hooks.json) and opencode
+// all share the runs dir, and an id whose prefix is missing here would be
+// attributed to whoever read it — letting one host take over another's run.
+const KNOWN_HOSTS = ["claude", "codex", "opencode"] as const
 const HOST_PREFIX = "opencode-"
-const KNOWN_PREFIXES = ["claude-", "opencode-"] as const
+const KNOWN_PREFIXES = KNOWN_HOSTS.map((h) => `${h}-`)
 const TAKEOVER_TTL_SEC = 300
 
 type RunState = {
