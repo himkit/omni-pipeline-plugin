@@ -115,12 +115,69 @@ export async function run(bin, args, opts = {}) {
   }
 }
 
+// Pure: turns what git says about the checkout into the reason a wire-up must
+// not happen, or null when it may. Kept separate from the git calls so the
+// rules are testable without a temp repo.
+//
+// The bug this exists for: a checkout left on a branch whose remote had been
+// deleted failed `pull --ff-only`, and the installer logged a shrug and wired
+// every host to months-old code anyway. Stale is a failure, not a note.
+export function checkoutComplaint({ ref, dirty, detached, upstream, ahead, behind }) {
+  const src = srcDir()
+  const how = (fix) =>
+    `\n    ${fix}\n    then re-run. Nothing was wired — no host points at a stale checkout.`
+
+  if (dirty && dirty.trim()) {
+    const files = dirty.trim().split("\n").map((l) => `      ${l}`).join("\n")
+    return `${src} has uncommitted changes:\n${files}` +
+      how(`commit or stash them, or: git -C "${src}" reset --hard`)
+  }
+
+  // An explicit --ref is a deliberate pin: a tag or commit is detached and
+  // upstreamless on purpose, so only the dirty check above applies.
+  if (ref) return null
+
+  if (detached || !upstream) {
+    const what = detached ? "is on a detached HEAD" : "is on a branch with no upstream"
+    return `${src} ${what}, so there is nothing to update it from.` +
+      how(`git -C "${src}" checkout -B main origin/main`)
+  }
+  if (behind > 0) {
+    return `${src} is ${behind} commit(s) behind ${upstream} — that is stale code.` +
+      how(`git -C "${src}" pull --ff-only`)
+  }
+  if (ahead > 0) {
+    return `${src} is ${ahead} commit(s) ahead of ${upstream}; those commits are not on the remote.` +
+      how(`push them, or: git -C "${src}" reset --hard ${upstream}`)
+  }
+  return null
+}
+
+// Asks git the questions checkoutComplaint answers.
+async function checkoutFacts(src, ref) {
+  const status = await run("git", ["-C", src, "status", "--porcelain"])
+  const head = await run("git", ["-C", src, "symbolic-ref", "-q", "HEAD"])
+  const up = await run("git", ["-C", src, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+  const upstream = up.ok ? up.out.trim() : null
+  let behind = 0
+  let ahead = 0
+  if (upstream) {
+    const counts = await run("git", ["-C", src, "rev-list", "--left-right", "--count", `${upstream}...HEAD`])
+    if (counts.ok) {
+      const [b, a] = counts.out.trim().split(/\s+/).map(Number)
+      behind = Number.isFinite(b) ? b : 0
+      ahead = Number.isFinite(a) ? a : 0
+    }
+  }
+  return { ref, dirty: status.ok ? status.out : "", detached: !head.ok, upstream, ahead, behind }
+}
+
 export async function ensureCheckout(ref) {
   const src = srcDir()
   await fs.mkdir(omniHome(), { recursive: true })
   if (await dirExists(path.join(src, ".git"))) {
     console.log(`  updating ${src}`)
-    await run("git", ["-C", src, "fetch", "--quiet", "origin"])
+    await run("git", ["-C", src, "fetch", "--quiet", "--prune", "origin"])
     if (ref) {
       const co = await run("git", ["-C", src, "checkout", "--quiet", ref])
       if (!co.ok) {
@@ -128,9 +185,16 @@ export async function ensureCheckout(ref) {
         console.error(`  refusing to wire hosts to whatever ref is checked out there.`)
         process.exit(1)
       }
+    } else {
+      // Best-effort: a fast-forward is the normal case, and any reason it did
+      // not happen is reported by the check below rather than swallowed here.
+      await run("git", ["-C", src, "pull", "--ff-only", "--quiet"])
     }
-    const pull = await run("git", ["-C", src, "pull", "--ff-only", "--quiet"])
-    if (!pull.ok) console.log(`  (pull skipped: local changes or detached ref)`)
+    const complaint = checkoutComplaint(await checkoutFacts(src, ref))
+    if (complaint) {
+      console.error(`  ${complaint}`)
+      process.exit(1)
+    }
   } else {
     console.log(`  cloning into ${src}`)
     const args = ["clone", "--quiet"]
