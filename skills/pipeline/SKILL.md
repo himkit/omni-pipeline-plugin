@@ -24,7 +24,7 @@ run-config questions. After that, zero questions until `done` or `blocked`.**
 
 ## Run directory (outside the repo)
 
-`~/.claude/omni-plugins/runs/<run-id>/` where **`run-id = <YYYY-MM-DD>-<repo-basename>-<feature-slug>`**
+`~/.omni-pipeline/runs/<run-id>/` where **`run-id = <YYYY-MM-DD>-<repo-basename>-<feature-slug>`**
 (the repo basename is in the id so two repos building a same-named feature on
 the same day never collide). Contains:
 
@@ -135,7 +135,7 @@ Input: the user's feature idea (from `/omni <idea>`).
    there is no case where you write `session_id` yourself. Create the branch
    `omni/<feature_slug>` (branches are repo-scoped, so no repo prefix needed) — via
    `git worktree add <path> -b omni/<feature_slug> <base>` in worktree mode
-   (put the worktree under `~/.claude/omni-plugins/worktrees/<run-id>`), or plain
+   (put the worktree under `~/.omni-pipeline/worktrees/<run-id>`), or plain
    `git checkout -b` in-place (refuse in-place if the tree is dirty — tell the
    user to stash or pick worktree mode).
 7. Announce: "**Omnislash cast — pipeline tự chém đến deliver.** Theo dõi: /omni-status. Hủy:

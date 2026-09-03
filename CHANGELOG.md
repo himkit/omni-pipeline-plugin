@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.4.0
+
+Run state moved out of Claude Code's directory. omni now keeps everything under
+`~/.omni-pipeline/` — `runs/` for state, `worktrees/` for the isolated
+checkouts it creates — and resolves all of it from a single `OMNI_HOME`
+environment variable. `OMNI_RUNS_DIR` is gone; it only ever relocated `runs`,
+so a test using it still shared the real worktrees directory.
+
+There is no migration code. If you have runs under the old path, move them once:
+
+    mkdir -p ~/.omni-pipeline && mv ~/.claude/omni-plugins/runs ~/.omni-pipeline/runs
+
+Installation is now one command for every host:
+
+    npx github:himkit/omni-pipeline-plugin
+
+It clones to `~/.omni-pipeline/src` and wires Claude Code, codex and opencode
+against that single checkout, so one re-run updates all three. codex is
+supported for the first time — it reads the plugin's existing
+`.claude-plugin/marketplace.json` directly, but ignores a plugin's own
+`hooks/hooks.json`, so the installer registers the gatekeeper in
+`~/.codex/hooks.json` (backed up first, and fenced so `--uninstall` removes
+exactly what it added).
+
+`.opencode-plugin/install.sh` is gone. It symlinked from wherever you happened
+to clone the repo, which the `~/.omni-pipeline/src` checkout replaces.
+
+Session ids are namespaced by host. The hooks read `OMNI_HOST` (`claude` when
+unset) to decide their prefix, and the codex hook command sets
+`OMNI_HOST=codex`, so a run started in codex is not resumable from Claude Code
+and vice versa — the two hosts share `runs/` without sharing ownership.
+
+`--uninstall` removes host wiring only. It never touches `~/.omni-pipeline/runs`.
+It also works when a host's binary is no longer on `PATH`, so removing the CLI
+first does not strand its symlinks.
+
+Cursor is not supported. It has no CLI, no plugin system and no subagents — and
+the pipeline's review loop is only meaningful because the reviewer runs in a
+fresh context that cannot see the implementer's reasoning.
+
 ## 0.3.0
 
 A omni run whose session died could not be picked up by another session. It
