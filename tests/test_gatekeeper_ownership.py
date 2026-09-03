@@ -1,4 +1,6 @@
 """Today's gatekeeper behaviour, pinned before it changes."""
+import time
+
 from omni_hook_harness import HookCase
 
 
@@ -38,3 +40,55 @@ class OwnershipTest(HookCase):
         out = self.run_hook(session_id="s1")
         self.assertNotIn("decision", out)
         self.assertEqual(self.read_state("r1")["phase"], "blocked")
+
+
+class HostPrefixTest(HookCase):
+    """`OMNI_HOST` names the host the hook is running inside, so the same
+    gatekeeper.py wired into codex qualifies ids as `codex-` and cannot be
+    confused with a Claude Code session."""
+
+    CODEX = {"OMNI_HOST": "codex"}
+
+    def test_default_host_is_still_claude(self):
+        self.write_run("r1", session_id=None)
+        self.run_hook(session_id="s2")
+        self.assertEqual(self.read_state("r1")["adopt_offers"], ["claude-s2"])
+
+    def test_codex_qualifies_ids_with_the_codex_prefix(self):
+        self.write_run("r1", session_id=None)
+        out = self.run_hook(session_id="s2", env=self.CODEX)
+        self.assertEqual(out.get("decision"), "block")
+        self.assertEqual(self.read_state("r1")["adopt_offers"], ["codex-s2"])
+
+    def test_codex_recognises_its_own_bound_session(self):
+        self.write_run("r1", session_id="codex-s1")
+        out = self.run_hook(session_id="s1", env=self.CODEX)
+        self.assertEqual(out.get("decision"), "block")
+        self.assertIn("spawn implementer for task 3", out.get("reason", ""))
+
+    def test_codex_session_is_not_offered_a_claude_owned_run(self):
+        self.write_run("r1", session_id="claude-s1")
+        self.assertEqual(self.run_hook(session_id="s1", env=self.CODEX), {})
+
+    def test_claude_session_is_not_offered_a_codex_owned_run(self):
+        self.write_run("r1", session_id="codex-s1")
+        self.assertEqual(self.run_hook(session_id="s1"), {})
+
+    def test_codex_takeover_cannot_steal_a_claude_owned_run(self):
+        self.write_run("r1", session_id="claude-s1",
+                       takeover_requested=int(time.time()),
+                       takeover_cwd="/repo")
+        self.run_hook(session_id="s9", env=self.CODEX)
+        self.assertEqual(self.read_state("r1")["session_id"], "claude-s1")
+
+    def test_codex_takeover_claims_a_codex_owned_run(self):
+        self.write_run("r1", session_id="codex-s1",
+                       takeover_requested=int(time.time()),
+                       takeover_cwd="/repo")
+        self.run_hook(session_id="s9", env=self.CODEX)
+        self.assertEqual(self.read_state("r1")["session_id"], "codex-s9")
+
+    def test_an_unknown_host_falls_back_to_claude(self):
+        self.write_run("r1", session_id=None)
+        self.run_hook(session_id="s2", env={"OMNI_HOST": "not-a-host"})
+        self.assertEqual(self.read_state("r1")["adopt_offers"], ["claude-s2"])

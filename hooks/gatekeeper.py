@@ -32,11 +32,18 @@ import time
 RUNNING_PHASES = {"planning", "implementing", "reviewing", "delivering"}
 MAX_CONSECUTIVE_BLOCKS = 15
 TAKEOVER_TTL_SEC = 300
-# OMNI_RUNS_DIR exists so tests never touch the user's real runs.
-RUNS_DIR = os.environ.get("OMNI_RUNS_DIR") or os.path.expanduser(
-    "~/.claude/omni-plugins/runs")
-HOST_PREFIX = "claude-"
-KNOWN_PREFIXES = ("claude-", "opencode-")
+# OMNI_HOME exists so tests never touch the user's real runs.
+OMNI_HOME = os.environ.get("OMNI_HOME") or os.path.expanduser("~/.omni-pipeline")
+RUNS_DIR = os.path.join(OMNI_HOME, "runs")
+# One gatekeeper.py serves every host: Claude Code, codex (via
+# ~/.codex/hooks.json) and opencode. OMNI_HOST says which one is running it, so
+# two hosts sharing RUNS_DIR can never be mistaken for each other. Unset or
+# unrecognised means Claude Code, the host that has always run this file.
+KNOWN_HOSTS = ("claude", "codex", "opencode")
+_HOST = (os.environ.get("OMNI_HOST") or "").strip().lower()
+HOST = _HOST if _HOST in KNOWN_HOSTS else "claude"
+HOST_PREFIX = HOST + "-"
+KNOWN_PREFIXES = tuple(h + "-" for h in KNOWN_HOSTS)
 
 
 def write_state(path, state):

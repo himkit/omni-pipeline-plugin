@@ -42,3 +42,20 @@ class SessionStartTest(HookCase):
         with open(path, "w") as f:
             f.write("{not json")
         self.assertEqual(self.notice(session_id="fresh", cwd="/repo"), "")
+
+    def test_codex_host_attributes_a_claude_run_to_claude(self):
+        self.write_run("r1", session_id="claude-dead")
+        text = self.notice(session_id="fresh", cwd="/repo",
+                           env={"OMNI_HOST": "codex"})
+        self.assertIn("owned by a claude session", text)
+        self.assertIn("resume it there, not here", text)
+
+    def test_codex_run_is_named_as_codex(self):
+        self.write_run("r1", session_id="codex-dead")
+        text = self.notice(session_id="fresh", cwd="/repo")
+        self.assertIn("owned by a codex session", text)
+
+    def test_codex_session_that_owns_the_run_is_not_announced(self):
+        self.write_run("r1", session_id="codex-fresh")
+        self.assertEqual(self.notice(session_id="fresh", cwd="/repo",
+                                     env={"OMNI_HOST": "codex"}), "")

@@ -5,7 +5,7 @@ agent: omni
 
 Invoke the `pipeline` skill and follow its **Resume protocol** for the
 run matching `$ARGUMENTS` (no argument: the single non-terminal run under
-`~/.claude/omni-plugins/runs/`; several candidates: list them and ask which).
+`~/.omni-pipeline/runs/`; several candidates: list them and ask which).
 
 Key steps the protocol requires, in this order:
 1. Rebuild context: `state.json`, `spec.md`, `plan.md`, `git log` on the branch.

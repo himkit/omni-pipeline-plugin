@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "omni-pipeline-plugin",
-  "description": "Autonomous feature pipeline for Claude Code and opencode: brainstorm a spec, then plan → implement (TDD) → review → deliver on a feature branch with zero human touch.",
+  "description": "Autonomous feature pipeline for Claude Code, codex and opencode: brainstorm a spec, then plan → implement (TDD) → review → deliver on a feature branch with zero human touch.",
   "owner": {
     "name": "himkit",
     "url": "https://github.com/himkit/omni-pipeline-plugin"

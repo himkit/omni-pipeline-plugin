@@ -2,16 +2,17 @@
 
 The omni pipeline was written for Claude Code. This directory is the opencode
 port: same skill, same run directory, same state machine — different host
-wiring. Claude Code and opencode share `~/.claude/omni-plugins/runs/`, so a run
+wiring. Claude Code and opencode share `~/.omni-pipeline/runs/`, so a run
 started in one is visible to `/omni-status` in the other.
 
 ## Install
 
 ```bash
-./install.sh
+npx github:himkit/omni-pipeline-plugin --hosts opencode
 ```
 
-Symlinks into `~/.config/opencode` (honours `$OPENCODE_CONFIG_DIR`):
+The installer clones to `~/.omni-pipeline/src` and symlinks from there into
+`~/.config/opencode` (honouring `$OPENCODE_CONFIG_DIR`):
 
 | Source | Destination |
 |---|---|
@@ -21,8 +22,12 @@ Symlinks into `~/.config/opencode` (honours `$OPENCODE_CONFIG_DIR`):
 | `plugins/omni-gatekeeper.ts` | `plugins/` — the enforcer |
 | `../skills/pipeline/` | `skills/pipeline/` — the shared skill, unmodified |
 
-`--copy` copies instead of symlinking; `--uninstall` removes everything it
-created. It refuses to clobber a real file that is already at a destination.
+`--uninstall` removes the symlinks it created. It leaves
+`~/.codex/hooks.json.omni-backup`, the directories it made under the config
+dir, and — by design — `~/.omni-pipeline/src` and your run state.
+
+Installing refuses to clobber a real file that is already at a destination: it
+reports every conflict and links nothing.
 
 Restart opencode afterwards, then `/omni <feature idea>`.
 
@@ -52,7 +57,7 @@ otherwise be mistaken for the orchestrator.
 **Permissions.** The pipeline is zero-touch after spec approval, so a
 permission prompt mid-run is a stall. `agents/omni.md` therefore allows `bash`,
 `edit`, `write`, and `task` for itself, plus `external_directory` under
-`~/.claude/omni-plugins/` where the run directory and the worktrees live. This
+`~/.omni-pipeline/` where the run directory and the worktrees live. This
 is scoped to the `omni` agent — your other agents keep whatever your
 `opencode.json` says.
 
