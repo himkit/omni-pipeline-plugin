@@ -17,9 +17,16 @@ every host at that one checkout, so re-running the command updates all of them.
 | Flag | Effect |
 |---|---|
 | `--hosts claude,codex` | skip the picker, install into these only |
-| `--yes` | skip the picker, use every detected host |
+| `--yes`, `-y` | skip the picker, use every detected host |
 | `--ref <ref>` | check out a specific branch or tag |
-| `--uninstall` | remove host wiring; run state is kept |
+| `--uninstall` | remove host wiring; the checkout and run state stay |
+| `--help`, `-h` | usage |
+
+A host that is not on your `PATH` shows in the picker but cannot be selected,
+except when uninstalling — you can always unwire a host whose binary you have
+already removed. Piped or non-interactive input skips the picker and uses every
+detected host. If any host fails to wire up, the installer says which and exits
+non-zero, so it is safe to chain in a setup script.
 
 `OMNI_HOME` relocates the checkout and the state the hooks resolve — it exists
 primarily as the seam the test suite writes through. It does **not** relocate a
@@ -33,8 +40,9 @@ replacement for the Claude Code Stop hook, all symlinked from the
 `$OPENCODE_CONFIG_DIR`). The gatekeeper becomes a plugin that re-prompts the
 session on `session.idle` instead of blocking a stop, and the subagents are
 renamed `omni-planner` / `omni-implementer` / `omni-reviewer` because opencode
-has one flat agent namespace. Run state is shared with Claude Code in
-`~/.omni-pipeline/runs/`. See
+has one flat agent namespace. Run state is shared with the other hosts in
+`~/.omni-pipeline/runs/`. Because the symlinks point into the checkout, editing
+a file in `~/.omni-pipeline/src` takes effect in opencode immediately. See
 [`.opencode-plugin/README.md`](.opencode-plugin/README.md) for the details.
 
 A copy of the skill that also exists in `~/.claude/skills/pipeline/` (or a path
@@ -43,15 +51,27 @@ Remove the old copy if the plugin's version does not take effect.
 
 ### Codex
 
-Codex ignores a plugin's own `hooks/hooks.json`, so the installer registers
-the gatekeeper in `~/.codex/hooks.json` instead (backed up first, and fenced
-so `--uninstall` removes exactly what it added). Its `Stop` hook is expected to
-block the way Claude Code's does — inferred from the CLI's own hook vocabulary
-and error strings, not from an observed `codex exec` run.
+Codex reads this plugin's `.claude-plugin/marketplace.json` directly, so
+`codex plugin add` needs no codex-specific manifest. It does ignore a plugin's
+own `hooks/hooks.json`, so the installer registers the gatekeeper in the
+user-level `~/.codex/hooks.json` instead — written atomically, backed up before
+the first change, and fenced with a `_source` key so `--uninstall` removes
+exactly what it added and nothing of yours.
+
+Its `Stop` hook is expected to block the way Claude Code's does. That is
+inferred from the codex binary's own hook vocabulary and error strings
+(`Stop hook returned decision:block without a non-empty reason`), not from an
+observed `codex exec` run.
 
 Only `Stop` is wired for codex. There is no `SessionStart` hook, so a codex
 session does not get the "unfinished run in this directory" reminder that
 Claude Code prints.
+
+Because codex runs the same `hooks/gatekeeper.py` Claude Code does, the hook
+takes its host identity from an `OMNI_HOST` environment variable, which the
+installer sets to `codex` in the command it writes. Without it a codex session
+would be labelled `claude-` and the ownership guard below could not tell the
+two apart.
 
 ## Commands
 
@@ -143,14 +163,22 @@ nothing pollutes the tree and parallel runs across repos never collide.
 | `plan.md` | Tasks, written by the planner |
 | `report.md` | Written at delivery: what was built, commits, test output, how to merge |
 
-Claude Code and opencode share this directory, so `/omni-status` in one sees
-runs started by the other. A run is only resumable from the host that started
-it.
+Worktrees the pipeline creates for itself live beside it, in
+`~/.omni-pipeline/worktrees/<run-id>/`.
+
+All three hosts share this directory, so `/omni-status` in one sees runs started
+by the others. A run is only resumable from the host that started it: each host
+prefixes the session ids it writes (`claude-`, `codex-`, `opencode-`), and the
+gatekeepers refuse a takeover across that boundary.
 
 Upgrading from a version that stored state in `~/.claude/omni-plugins/`? Move
 your runs once — there is no automatic migration:
 
     mkdir -p ~/.omni-pipeline && mv ~/.claude/omni-plugins/runs ~/.omni-pipeline/runs
+
+That leaves an empty `~/.claude/omni-plugins/worktrees/` behind. Delete it once
+no run is using it; the pipeline creates worktrees under the new path from now
+on.
 
 `OMNI_HOME` moves this directory and the checkout for the hooks and the
 installer. The prompts do not read it, so see the note under
