@@ -76,3 +76,20 @@ test("taking a run back clears stale revocation bookkeeping", () => {
 	expect(state.prev_owners).toEqual(["opencode-b"])
 	expect(state.revoked_notified).toEqual([])
 })
+
+test("a codex-owned id is attributed to codex, not to this host", () => {
+	expect(ownerPrefix("codex-s1")).toBe("codex-")
+	expect(qualify("codex-s1")).toBe("codex-s1")
+	expect(sameOwner("codex-s1", "s1")).toBe(false)
+})
+
+test("grantClaim refuses a run owned by codex", () => {
+	const now = 1_800_000_000
+	const state: Record<string, unknown> = {
+		session_id: "codex-dead",
+		takeover_requested: now - 10,
+		takeover_cwd: "/repo",
+	}
+	expect(grantClaim(state, "/repo", now, "opencode-alive")).toBe(false)
+	expect(state.session_id).toBe("codex-dead")
+})
