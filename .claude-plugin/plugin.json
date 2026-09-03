@@ -1,0 +1,13 @@
+{
+  "name": "omni",
+  "version": "0.3.0",
+  "description": "Autonomous feature pipeline (Dota 2 Omnislash style — cast once, it slashes to the end on its own): brainstorm and lock a spec interactively, then plan → implement (TDD) → review loop → deliver on a feature branch with zero human touch, enforced by a Stop-hook state machine.",
+  "keywords": [
+    "automation",
+    "pipeline",
+    "tdd",
+    "subagents",
+    "workflow",
+    "spec-driven"
+  ]
+}

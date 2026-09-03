@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "omni-pipeline-plugin",
+  "description": "Autonomous feature pipeline for Claude Code and opencode: brainstorm a spec, then plan → implement (TDD) → review → deliver on a feature branch with zero human touch.",
+  "owner": {
+    "name": "himkit",
+    "url": "https://github.com/himkit/omni-pipeline-plugin"
+  },
+  "plugins": [
+    {
+      "name": "omni",
+      "description": "Autonomous feature pipeline: brainstorm and lock a spec interactively, then plan → implement (TDD) → review loop → deliver on a feature branch with zero human touch, enforced by a Stop-hook state machine. /omni, /omni-status, /omni-resume, /omni-abort.",
+      "source": "./",
+      "category": "workflow"
+    }
+  ]
+}
