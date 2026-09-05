@@ -27,8 +27,11 @@ The repo is public, and ruleset `protect-main` (id 22178947) is active on
 - `deletion` — the branch cannot be deleted
 - `non_fast_forward` — no force pushes
 - `pull_request` — changes land through a PR (0 approvals required)
+- `required_status_checks` — the `python-hooks` and `bun` jobs from
+  `.github/workflows/test.yml` must pass, and the branch must be up to date
+  with `main` (strict)
 
-Repo admins bypass all three (`bypass_mode: always`), so a direct push to
+Repo admins bypass all four (`bypass_mode: always`), so a direct push to
 `main` still works when you mean it. Note that the ruleset only exists because
 the repo is public: GitHub refuses rulesets on a private repo under a free org
 plan.
