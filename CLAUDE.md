@@ -35,15 +35,19 @@ plan.
 
 ## Tests
 
-Both suites must pass before a push:
+Both suites must pass before a push. CI (`.github/workflows/test.yml`) runs
+the same two commands on every push to `main` and every pull request:
 
 ```bash
 python3 -m pytest tests -q
 ```
 
 ```bash
-bun test tests/omni-gatekeeper.test.ts
+bun test
 ```
+
+`bun test` picks up every `tests/*.test.ts` — the opencode gatekeeper helpers
+and the installer's pure functions.
 
 The Python hooks (`hooks/gatekeeper.py`, `hooks/session_start.py`) and the
 opencode plugin (`.opencode-plugin/plugins/omni-gatekeeper.ts`) are two ports of
