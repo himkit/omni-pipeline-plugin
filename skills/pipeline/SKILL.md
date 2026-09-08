@@ -24,9 +24,9 @@ run-config questions. After that, zero questions until `done` or `blocked`.**
 
 ## Run directory (outside the repo)
 
-`~/.omni-pipeline/runs/<run-id>/` where **`run-id = <YYYY-MM-DD>-<repo-basename>-<feature-slug>`**
-(the repo basename is in the id so two repos building a same-named feature on
-the same day never collide). Contains:
+`~/.omni-pipeline/runs/<run-id>/` where **`run-id = <YYYY-MM-DD>-<primary-repo-basename>-<feature-slug>`**
+(the primary repo basename is in the id so two repos building a same-named
+feature on the same day never collide). Contains:
 
 - `state.json` — single source of truth (schema below)
 - `spec.md` — locked spec
@@ -60,7 +60,7 @@ the same day never collide). Contains:
     {
       "name": "shop-web",
       "repo": "/abs/path/to/shop-web",
-      "workdir": "~/.omni-pipeline/worktrees/2026-08-28-shop-api-dark-mode/shop-web",
+      "workdir": "/Users/me/.omni-pipeline/worktrees/2026-08-28-shop-api-dark-mode/shop-web",
       "isolation": "worktree",
       "branch": "omni/dark-mode",
       "base_branch": "develop",
@@ -82,7 +82,8 @@ the same day never collide). Contains:
 **Targets.** A run works on one or more repositories, each a *target* with its
 own `repo`, `workdir`, `isolation` (`worktree` or `in-place`), `branch`,
 `base_branch` and `test_command`. `name` is unique within the run and defaults
-to the repo basename; plan tasks and review findings refer to targets by it.
+to the repo basename — when two repos share a basename, ask for a distinct
+name in step 5 — and plan tasks and review findings refer to targets by it.
 The first target is the **primary** target — the repo `/omni` was invoked in
 unless the user named another — and the top-level `repo`, `workdir`, `branch`,
 `base_branch` and `test_command` are always copies of it, so a run with one
@@ -90,7 +91,9 @@ target looks exactly like it always did and the hooks need no migration.
 Targets are written once at setup and never change: adding a repo mid-run is a
 spec change, so it is a new run. Worktree path per target:
 `~/.omni-pipeline/worktrees/<run-id>/<name>`; a run with a single target keeps
-`~/.omni-pipeline/worktrees/<run-id>`.
+`~/.omni-pipeline/worktrees/<run-id>`. Paths in `targets` are absolute and
+expanded — never `~`; the hooks resolve them with realpath, which does not
+expand it.
 
 `branch` is always `omni/<feature_slug>` — never the full run-id. The
 gatekeeper owns its own bookkeeping fields (`session_id`, `prev_owners`,
@@ -183,7 +186,10 @@ Input: the user's feature idea (from `/omni <idea>`).
       (branches are repo-scoped, so every target shares the name) — via
       `git worktree add <workdir> -b omni/<feature_slug> <base_branch>` for
       `worktree` targets (path per the schema), or `git checkout -b` in place
-      for `in-place` targets.
+      for `in-place` targets. If a target's branch or worktree cannot be
+      created, set `phase: "blocked"` with a `blocked_reason` naming the
+      targets that were created and the one that failed — resume must never
+      assume every target exists.
 7. Announce: "**Omnislash cast — pipeline tự chém đến deliver.** Theo dõi: /omni-status. Hủy:
    /omni-abort." Then **end your turn without spawning anything** — the
    gatekeeper binds the run to this session at that boundary and comes back
@@ -229,7 +235,8 @@ task number and `<type>` is a real conventional-commit type (`feat`, `fix`,
 survives any repo's commitlint, and it is what lets a resuming session read
 progress out of git instead of trusting `state.json`. Commits that fix review
 findings keep a plain `fix: <finding>` subject — they are not tasks. **Never add
-a Co-Authored-By trailer**; never push; never touch files outside the task's target `workdir`.
+a Co-Authored-By trailer**; never push; never touch files outside the task's
+target `workdir`.
 
 ## Phase 3 — review loop
 
@@ -241,7 +248,9 @@ Each iteration:
    `git diff <base>...HEAD` in each), and the required output format. Finding
    paths come back as `<name>:path/file.ext:line`; pass them to the implementer
    grouped by target, each group with that target's `workdir`. Findings in two
-   targets mean two implementer spawns, one after the other.
+   targets mean two implementer spawns, one after the other. A finding with no
+   prefix, or a prefix naming no target, resolves to the primary target; note
+   that in `report.md`.
 3. Parse the verdict:
    - **No blocking findings AND tests pass** → `phase: "delivering"`.
    - **Blocking findings** → increment `review_iter`. If `review_iter >
@@ -269,9 +278,10 @@ Each iteration:
    merge (`git worktree remove <path>`, `git branch -d omni/<feature_slug>` in
    that repo, and removing the run dir once every target is merged).
 4. Set `phase: "done"`, `next_action: null`. The gatekeeper disarms.
-5. Announce: "**GG — throne down.** Branch `omni/<feature_slug>` sẵn sàng." — naming every target's repo when there is more than one — plus a
-   short summary, branch name, report path. **Never push, never open an MR** —
-   the human decides that.
+5. Announce: "**GG — throne down.** Branch `omni/<feature_slug>` sẵn sàng." —
+   naming every target's repo when there is more than one — plus a short
+   summary, branch name, report path. **Never push, never open an MR** — the
+   human decides that.
 
 ## Blocked protocol
 
@@ -282,6 +292,20 @@ Set `phase: "blocked"`, write a `blocked_reason` a human can act on, set
 NOT valid reasons to block: a hard bug (debug it), a failing test (fix it),
 an ambiguous nit (pick the spec-consistent reading and note it in report.md).
 
+## Abort protocol (/omni-abort)
+
+1. Set `phase: "aborted"` in `state.json` first — the gatekeeper disarms and
+   nothing can stay trapped.
+2. Report what exists per target: branch, commits against `base_branch`,
+   worktree path for `worktree` targets, and the run dir.
+3. Ask once — keep everything (default) or delete branches, worktrees and the
+   run dir. Only after an explicit yes, for each target: `worktree` →
+   `git worktree remove <workdir> --force`, then `git branch -D
+   omni/<feature_slug>` in its repo; `in-place` → `git checkout <base_branch>`
+   in its repo, then `git branch -D omni/<feature_slug>`. A target whose
+   worktree or branch does not exist is skipped, not an error — keep going
+   and report it. Remove the run dir last.
+
 ## Resume protocol (/omni-resume)
 
 1. Locate the run (arg run-id, else the single non-terminal run; if several, ask).
@@ -289,7 +313,9 @@ an ambiguous nit (pick the spec-consistent reading and note it in report.md).
 3. If blocked: get the human answer for `blocked_reason` first.
 4. **Reconcile against git.** `state.json` records what the dead session
    *intended*; git records what actually happened. For every target, in its
-   `workdir`:
+   `workdir`: a target whose `workdir` does not exist contributes no subjects
+   and no test run; record it in `report.md` and in `blocked_reason` if you
+   block.
    a. `git status --porcelain` — non-empty means an agent died mid-edit. Run
       `git stash push -u -m "omni takeover <date +%s>"`. Never `reset --hard`:
       the work may be worth reading before it is thrown away.

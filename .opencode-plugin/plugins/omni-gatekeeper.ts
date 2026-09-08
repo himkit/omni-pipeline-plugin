@@ -10,11 +10,11 @@
  * - FAIL-OPEN: any error, missing file, or bad JSON leaves the session alone.
  *   A broken gatekeeper must never trap a session.
  * - Ownership handshake: never adopt a session on its own. For an unbound run
- *   (session_id null) whose repo/workdir — or any target's — (or resume_cwd, written by
- *   /omni-resume) contains this session's directory, nudge ONCE with an offer
- *   naming this session's id; the orchestrator binds by writing that id into
- *   state.json itself. A session that ignores the offer is never nudged by
- *   that run again (tracked in adopt_offers).
+ *   (session_id null) whose repo/workdir, any target's repo/workdir, or
+ *   resume_cwd (written by /omni-resume) contains this session's directory,
+ *   nudge ONCE with an offer naming this session's id; the orchestrator binds
+ *   by writing that id into state.json itself. A session that ignores the
+ *   offer is never nudged by that run again (tracked in adopt_offers).
  * - Safety valve, gatekeeper-enforced: the nudge counter (`gk_blocks`) and the
  *   progress signature it is keyed to (`gk_fingerprint`) are owned and written
  *   by this plugin alone, never read back from what the orchestrator wrote. The
@@ -50,7 +50,7 @@ type RunTarget = {
 	name?: string
 	repo?: string
 	workdir?: string
-	isolation?: "worktree" | "in-place" | string
+	isolation?: string // "worktree" | "in-place"
 	branch?: string
 	base_branch?: string
 	test_command?: string
@@ -118,7 +118,7 @@ export function runDirs(state: RunState): string[] {
 	if (Array.isArray(state.targets)) {
 		for (const target of state.targets) {
 			if (target && typeof target === "object") {
-				dirs.push((target as RunTarget).workdir, (target as RunTarget).repo)
+				dirs.push(target.workdir, target.repo)
 			}
 		}
 	}

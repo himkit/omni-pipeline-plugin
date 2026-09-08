@@ -46,6 +46,7 @@ class TargetDirectoriesTest(HookCase):
         self.assertIn("no longer own", reason)
         self.assertIn("/repo", reason)
         self.assertIn("/wt/web", reason)
+        self.assertIn("/repo, /wt/web, /web", reason)
 
 
 class MalformedTargetsTest(HookCase):

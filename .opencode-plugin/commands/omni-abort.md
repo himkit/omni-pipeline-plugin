@@ -18,4 +18,6 @@ run under `~/.omni-pipeline/runs/`; several candidates: list them and ask which)
    Only delete after an explicit yes. Then for each target: `worktree` →
    `git worktree remove <workdir> --force`, then `git branch -D omni/<feature_slug>`
    in its repo; `in-place` → `git checkout <base_branch>` in its repo, then
-   `git branch -D omni/<feature_slug>`. Remove the run dir last.
+   `git branch -D omni/<feature_slug>`. A target whose worktree or branch does
+   not exist is skipped, not an error — keep going and report it. Remove the
+   run dir last.

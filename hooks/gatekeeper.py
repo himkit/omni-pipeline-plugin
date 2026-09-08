@@ -9,12 +9,13 @@ Design rules:
 - FAIL-OPEN: any error, missing file, or bad JSON must allow the stop.
   A broken gatekeeper must never trap a session.
 - Ownership handshake: the gatekeeper never adopts a session on its own.
-  For an unbound run (session_id null) whose repo/workdir — or any target's — (or resume_cwd,
-  written by /omni-resume) contains this session's cwd, it blocks ONCE with
-  an offer naming this session's id; the orchestrator binds by writing that
-  id into state.json itself. A session that ignores the offer is never
-  blocked by that run again (tracked in adopt_offers), so unrelated sessions
-  in the same repo lose at most one turn.
+  For an unbound run (session_id null) whose repo/workdir, any target's
+  repo/workdir, or resume_cwd (written by /omni-resume) contains this
+  session's cwd, it blocks ONCE with an offer naming this session's id; the
+  orchestrator binds by writing that id into state.json itself. A session
+  that ignores the offer is never blocked by that run again (tracked in
+  adopt_offers), so unrelated sessions in the same repo lose at most one
+  turn.
 - Safety valve, gatekeeper-enforced: the block counter (`gk_blocks`) and the
   progress signature it is keyed to (`gk_fingerprint`) are owned and written
   by this hook alone, never read from what the orchestrator wrote. The

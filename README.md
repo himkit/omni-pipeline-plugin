@@ -90,11 +90,11 @@ two apart.
 | `/omni <idea>` | Start. The only command you normally type. |
 | `/omni-status` | Where is it? Phase, task i/n, review iteration, branch. |
 | `/omni-resume` | The session driving a run died. Take it over here. |
-| `/omni-abort` | Stop a run. Optionally delete branch, worktree and run dir. |
+| `/omni-abort` | Stop a run. Optionally delete branches, worktrees and run dir. |
 
 ## The run
 
-You are asked exactly twice: approve the spec, then answer four setup
+You are asked exactly twice: approve the spec, then answer the setup
 questions. After that it is hands-off until `done` or `blocked`.
 
 ```mermaid
@@ -102,7 +102,7 @@ flowchart TD
     A["/omni idea"] --> B["Brainstorm<br/>questions, one at a time"]
     B --> C{"Spec good?"}
     C -- "no, revise" --> B
-    C -- "yes" --> D["Setup<br/>per repo: worktree? test command? base branch?<br/>max review iters?"]
+    C -- "yes" --> D["Setup<br/>per repo: worktree? test command? base branch?<br/>run: max review iters?"]
     D --> E["Plan<br/>tasks with tests and a verify command"]
     E --> F["Implement<br/>one task per agent, red-green-refactor, commit"]
     F --> G["Review<br/>diff against the spec, real defects only"]

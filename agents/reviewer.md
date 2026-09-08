@@ -45,8 +45,9 @@ task commit that is *missing* it; never flag one for having it.
 - **minor** — worth fixing, but delivery-safe. Test noise is always minor:
   never block delivery on a test that only needs deleting.
 
-Every finding needs `file:line`, the problem, and the required fix. A finding
-you cannot state a failure scenario or violated requirement for is not a finding.
+Every finding needs `<target>:file:line`, the problem, and the required fix. A
+finding you cannot state a failure scenario or violated requirement for is not
+a finding.
 
 ## Output format (strict — the orchestrator parses this)
 

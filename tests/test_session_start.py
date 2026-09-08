@@ -71,3 +71,10 @@ class SessionStartTest(HookCase):
     def test_malformed_targets_still_announce_from_the_primary_directory(self):
         self.write_run("r1", session_id="claude-dead", targets=["junk", None])
         self.assertIn("r1", self.notice(session_id="fresh", cwd="/repo"))
+
+    def test_targets_do_not_widen_the_session_start_match(self):
+        self.write_run("r1", session_id="claude-dead", targets=[
+            {"name": "api", "repo": "/repo", "workdir": "/repo"},
+            {"name": "web", "repo": "/web", "workdir": "/wt/web"},
+        ])
+        self.assertEqual(self.notice(session_id="fresh", cwd="/elsewhere"), "")

@@ -31,8 +31,8 @@ written into the run directory. You write NO feature code.
      logic) are implementation details of the task that consumes them — fold
      them into that task. Never give one a task of its own.
    - Small: 2–5 files, one coherent behavior, implementable in one sitting
-   - Self-contained: an implementer with only `spec.md`, `plan.md`, and the
-     repo must be able to do it without guessing or asking
+   - Self-contained: an implementer with only `spec.md`, `plan.md`, and its
+     target's repo must be able to do it without guessing or asking
    - Ordered: earlier tasks never depend on later ones
    - Single-target: a task touches exactly one target. A behavior that needs
      two repos (an endpoint and the client that calls it) is two ordered

@@ -54,6 +54,7 @@ and the installer's pure functions.
 
 The Python hooks (`hooks/gatekeeper.py`, `hooks/session_start.py`) and the
 opencode plugin (`.opencode-plugin/plugins/omni-gatekeeper.ts`) are two ports of
-the same gatekeeper logic. A change to the ownership, prefix, or safety-valve
-rules in one has to land in the other, and both list every host in `KNOWN_HOSTS`
-— an omission there lets one host take over another host's run.
+the same gatekeeper logic. A change to the ownership, prefix,
+directory-matching, or safety-valve rules in one has to land in the other, and
+both list every host in `KNOWN_HOSTS` — an omission there lets one host take
+over another host's run.
