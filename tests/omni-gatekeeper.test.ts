@@ -3,6 +3,7 @@ import {
 	grantClaim,
 	ownerPrefix,
 	qualify,
+	runDirs,
 	sameOwner,
 	takeoverClaim,
 } from "../.opencode-plugin/plugins/omni-gatekeeper.ts"
@@ -92,4 +93,38 @@ test("grantClaim refuses a run owned by codex", () => {
 	}
 	expect(grantClaim(state, "/repo", now, "opencode-alive")).toBe(false)
 	expect(state.session_id).toBe("codex-dead")
+})
+
+test("runDirs lists the primary pair, then each target's directories, once each", () => {
+	expect(runDirs({ workdir: "/repo", repo: "/repo" })).toEqual(["/repo"])
+	expect(
+		runDirs({
+			workdir: "/repo",
+			repo: "/repo",
+			targets: [
+				{ name: "api", repo: "/repo", workdir: "/repo" },
+				{ name: "web", repo: "/web", workdir: "/wt/web" },
+			],
+		}),
+	).toEqual(["/repo", "/wt/web", "/web"])
+})
+
+test("runDirs ignores a malformed targets field", () => {
+	expect(runDirs({ workdir: "/repo", targets: "junk" as unknown as never })).toEqual(["/repo"])
+	expect(
+		runDirs({ workdir: "/repo", targets: [null, "str", { workdir: 3 }] as unknown as never }),
+	).toEqual(["/repo"])
+})
+
+test("takeoverClaim without a cwd flag matches any target directory", () => {
+	const now = 1_800_000_000
+	const state = {
+		takeover_requested: now - 10,
+		workdir: "/repo",
+		repo: "/repo",
+		targets: [{ name: "web", repo: "/web", workdir: "/wt/web" }],
+	}
+	expect(takeoverClaim(state, "/wt/web/src", now)).toBe(true)
+	expect(takeoverClaim(state, "/web", now)).toBe(true)
+	expect(takeoverClaim(state, "/elsewhere", now)).toBe(false)
 })

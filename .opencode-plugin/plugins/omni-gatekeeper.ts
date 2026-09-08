@@ -10,7 +10,7 @@
  * - FAIL-OPEN: any error, missing file, or bad JSON leaves the session alone.
  *   A broken gatekeeper must never trap a session.
  * - Ownership handshake: never adopt a session on its own. For an unbound run
- *   (session_id null) whose repo/workdir (or resume_cwd, written by
+ *   (session_id null) whose repo/workdir — or any target's — (or resume_cwd, written by
  *   /omni-resume) contains this session's directory, nudge ONCE with an offer
  *   naming this session's id; the orchestrator binds by writing that id into
  *   state.json itself. A session that ignores the offer is never nudged by
@@ -46,6 +46,16 @@ const HOST_PREFIX = "opencode-"
 const KNOWN_PREFIXES = KNOWN_HOSTS.map((h) => `${h}-`)
 const TAKEOVER_TTL_SEC = 300
 
+type RunTarget = {
+	name?: string
+	repo?: string
+	workdir?: string
+	isolation?: "worktree" | "in-place" | string
+	branch?: string
+	base_branch?: string
+	test_command?: string
+}
+
 type RunState = {
 	phase?: string
 	session_id?: string | null
@@ -57,6 +67,7 @@ type RunState = {
 	resume_cwd?: string
 	workdir?: string
 	repo?: string
+	targets?: RunTarget[]
 	next_action?: string | null
 	blocked_reason?: string | null
 	stop_blocks?: number
@@ -99,6 +110,25 @@ async function inside(cwd: string, base?: string): Promise<boolean> {
 	}
 }
 
+/** Every directory a run lives in: the primary workdir/repo pair, then each
+ *  target's workdir and repo. Ordered, deduplicated, non-string entries
+ *  dropped. A malformed `targets` contributes nothing — fail-open. */
+export function runDirs(state: RunState): string[] {
+	const dirs: unknown[] = [state.workdir, state.repo]
+	if (Array.isArray(state.targets)) {
+		for (const target of state.targets) {
+			if (target && typeof target === "object") {
+				dirs.push((target as RunTarget).workdir, (target as RunTarget).repo)
+			}
+		}
+	}
+	const out: string[] = []
+	for (const d of dirs) {
+		if (typeof d === "string" && d && !out.includes(d)) out.push(d)
+	}
+	return out
+}
+
 /** This host's session id, namespaced so two hosts sharing the runs dir can
  *  never be mistaken for each other. */
 export function qualify(sid: string): string {
@@ -132,7 +162,7 @@ export function takeoverClaim(state: RunState, cwd: string, now: number): boolea
 	const requested = Number(state.takeover_requested)
 	if (!Number.isFinite(requested) || requested <= 0) return false
 	if (now - requested > TAKEOVER_TTL_SEC) return false
-	const bases = state.takeover_cwd ? [state.takeover_cwd] : [state.workdir, state.repo]
+	const bases = state.takeover_cwd ? [state.takeover_cwd] : runDirs(state)
 	return bases.some((base) => {
 		if (!base || !cwd) return false
 		const a = path.resolve(cwd)
@@ -256,7 +286,7 @@ export const OmniGatekeeper: Plugin = async ({ client, directory }) => {
 				nudge(
 					sessionID,
 					`[omni gatekeeper] Run '${slug}' now belongs to session ${state.session_id}. ` +
-						`You no longer own it: spawn nothing, write nothing under ${state.workdir}. ` +
+						`You no longer own it: spawn nothing, write nothing under ${runDirs(state).join(", ") || state.workdir}. ` +
 						`Tell the user it moved, then rest — you will not be nudged again.`,
 				)
 				return
@@ -265,7 +295,7 @@ export const OmniGatekeeper: Plugin = async ({ client, directory }) => {
 			if (owner === null) {
 				const offers = state.adopt_offers ?? []
 				if (offers.includes(me) || offers.includes(sessionID)) continue // offered before
-				const bases = [state.workdir, state.repo, state.resume_cwd]
+				const bases = [...runDirs(state), state.resume_cwd]
 				let matches = false
 				for (const base of bases) {
 					if (await inside(directory, base)) {
