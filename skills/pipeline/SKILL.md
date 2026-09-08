@@ -90,9 +90,10 @@ unless the user named another — and the top-level `repo`, `workdir`, `branch`,
 target looks exactly like it always did and the hooks need no migration.
 Targets are written once at setup and never change: adding a repo mid-run is a
 spec change, so it is a new run. Worktree path per target:
-`~/.omni-pipeline/worktrees/<run-id>/<name>`; a run with a single target keeps
-`~/.omni-pipeline/worktrees/<run-id>`. Paths in `targets` are absolute and
-expanded — never `~`; the hooks resolve them with realpath, which does not
+`<OMNI_HOME>/worktrees/<run-id>/<name>` (default `OMNI_HOME` is
+`~/.omni-pipeline`); a run with a single target keeps
+`<OMNI_HOME>/worktrees/<run-id>`. The paths stored in `targets` are absolute
+and expanded — never `~`; the hooks resolve them with realpath, which does not
 expand it.
 
 `branch` is always `omni/<feature_slug>` — never the full run-id. The
@@ -166,6 +167,8 @@ Input: the user's feature idea (from `/omni <idea>`).
      untouched) or branch on the current workspace?
    - Test command (propose what you found in the repo; confirm)
    - Base branch (default: repo's default branch)
+   - Name — only when two targets share a basename; otherwise the basename is
+     the name and there is nothing to ask
    - Max review iterations (default 5) — one value for the whole run
 6. Set up, in this order — it is what keeps a refused run from leaving half a
    run behind:
@@ -190,7 +193,8 @@ Input: the user's feature idea (from `/omni <idea>`).
       created, set `phase: "blocked"` with a `blocked_reason` naming the
       targets that were created and the one that failed — resume must never
       assume every target exists.
-7. Announce: "**Omnislash cast — pipeline tự chém đến deliver.** Theo dõi: /omni-status. Hủy:
+7. If 6c blocked the run, tell the user which target failed and stop here.
+   Otherwise announce: "**Omnislash cast — pipeline tự chém đến deliver.** Theo dõi: /omni-status. Hủy:
    /omni-abort." Then **end your turn without spawning anything** — the
    gatekeeper binds the run to this session at that boundary and comes back
    telling you to start planning. From here, do not ask the human anything.
