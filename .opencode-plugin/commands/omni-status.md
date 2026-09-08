@@ -8,8 +8,10 @@ Show the state of omni runs from `~/.omni-pipeline/runs/*/state.json`.
 1. Read every `state.json` (with the argument `$ARGUMENTS` as a run-id filter
    if given). No runs directory or no matches → say so and stop.
 2. Render a scoreboard table: run-id, phase, task i/n, review iter, branch,
-   workdir, updated_at. Terminal phases (done/blocked/aborted) go below active
-   runs.
+   workdir, updated_at. A run whose `targets` has more than one entry shows
+   `<n> targets` in the workdir column and, under its row, one indented line
+   per target: `name — isolation — workdir`. Terminal phases
+   (done/blocked/aborted) go below active runs.
 3. For a `blocked` run, quote its `blocked_reason` and point at `/omni-resume`.
    For a `done` run, point at its `report.md`.
 
