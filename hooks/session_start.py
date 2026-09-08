@@ -33,6 +33,24 @@ def inside(cwd, base):
     return cwd == base or cwd.startswith(base.rstrip("/") + "/")
 
 
+def run_dirs(state):
+    """Every directory a run lives in: the primary workdir/repo pair, then each
+    target's workdir and repo. Ordered, deduplicated, falsy and non-string
+    entries dropped. A malformed `targets` contributes nothing — fail-open."""
+    dirs = [state.get("workdir"), state.get("repo")]
+    targets = state.get("targets")
+    if isinstance(targets, list):
+        for target in targets:
+            if isinstance(target, dict):
+                dirs.append(target.get("workdir"))
+                dirs.append(target.get("repo"))
+    out = []
+    for d in dirs:
+        if isinstance(d, str) and d and d not in out:
+            out.append(d)
+    return out
+
+
 def owner_host(bound):
     """Which host owns `bound`, or None when the run is unowned. An id with no
     known prefix predates prefixing and belongs to whoever is reading it."""
@@ -63,7 +81,7 @@ def main():
             continue
         if state.get("phase") not in RUNNING_PHASES:
             continue
-        if not any(inside(cwd, b) for b in (state.get("workdir"), state.get("repo"))):
+        if not any(inside(cwd, b) for b in run_dirs(state)):
             continue
         bound = state.get("session_id")
         if sid and bound in (sid, "%s-%s" % (HOST, sid)):
