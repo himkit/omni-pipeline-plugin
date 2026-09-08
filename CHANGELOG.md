@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.0
+
+One run can now span several repositories. `state.json` carries a `targets`
+array — one entry per repository with its own `isolation` (`worktree` or
+`in-place`), `branch`, `base_branch` and `test_command` — and the top-level
+`repo`/`workdir`/`branch`/`base_branch`/`test_command` are copies of the first
+target, so a single-repo run looks exactly as it did and needs no migration.
+
+Targets are collected during the run-config questions and written once at
+setup, before any branch or worktree is created; every `in-place` repo is
+checked clean first so a refused run leaves nothing behind. Plan tasks name
+their target, the implementer still sees exactly one `workdir`, the reviewer
+diffs every target and prefixes findings with the target name, resume takes
+the highest `(omni-task-N)` across all targets' logs, and abort cleans up each
+target by its isolation mode.
+
+All three gatekeeper ports match a session against every target's `workdir`
+and `repo`, so a run is offered, claimed and announced from any of its
+repositories.
+
 ## 0.4.0
 
 Run state moved out of Claude Code's directory. omni now keeps everything under
