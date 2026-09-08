@@ -1,5 +1,5 @@
 ---
-description: Abort a omni run (gg) — disarm the gatekeeper, optionally clean up branch and worktree
+description: Abort a omni run (gg) — disarm the gatekeeper, optionally clean up branches and worktrees
 agent: omni
 ---
 

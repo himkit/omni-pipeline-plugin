@@ -8,7 +8,7 @@ run matching `$ARGUMENTS` (no argument: the single non-terminal run under
 `~/.omni-pipeline/runs/`; several candidates: list them and ask which).
 
 Key steps the protocol requires, in this order:
-1. Rebuild context: `state.json`, `spec.md`, `plan.md`, `git log` on the branch.
+1. Rebuild context: `state.json`, `spec.md`, `plan.md`, and `git log` on the branch in every target's `workdir`.
 2. If phase is `blocked`, surface `blocked_reason` and get the human's answer
    before anything else.
 3. Reconcile against git — git is the truth, `state.json` is only what the
