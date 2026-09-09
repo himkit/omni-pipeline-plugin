@@ -149,6 +149,8 @@ Phases: `brainstorm → planning → implementing → reviewing → delivering �
    directory this skill was loaded from), strip its frontmatter, and use the
    body as the subagent's system prompt, followed by the task inputs listed in
    the phase. Give the child a clean context, not a copy of this conversation.
+   If `agents/<role>.md` is not there — a skills-only install copies `skills/`
+   and nothing else — fall through to item 3 and use *Roles in brief* below.
 3. The session cannot spawn subagents. Do the role's work yourself, in this
    session, one task at a time, following the same inputs and outputs the
    phase describes. Say so once in `report.md`.
@@ -168,6 +170,38 @@ has not returned. Two implementers on one worktree means interleaved edits,
 conflicting commits, and a dirty tree that fails your own verification. If a
 gatekeeper message names a `next_action` you have already started, it is a
 stale nudge — do not act on it twice.
+
+## Roles in brief
+
+What the inline path (ladder item 3) has to reproduce. When `agents/<role>.md`
+is available, that file is the authority and these summaries are only a map.
+
+**Planner.** Reads `spec.md`, explores every target's `workdir` for its
+conventions, then writes `plan.md`: ordered, behavioral tasks of 2–5 files,
+each with a `**Target:**` line, goal, files, a named `**Test first:**` step,
+what to implement, an exact `**Verify:**` command and done-criteria. One target
+per task, earlier tasks never depending on later ones; data-holding types fold
+into the behavior that uses them. Every spec requirement is covered, plus a
+final acceptance-criteria task. A contradictory spec is reported, not
+improvised around. Writes no feature code.
+
+**Implementer.** One task, or one set of review findings, in one `workdir`,
+under strict TDD: write the named test, confirm it fails for the right reason,
+add the minimal code to green, refactor, then run the full suite. One commit
+per task, subject `<type>(omni-task-N): <subject>`; findings commit as
+`fix: <finding>`. Never a Co-Authored-By trailer, never a push, nothing touched
+outside that `workdir`, nothing beyond the assigned scope. Never weaken, skip
+or delete a test to reach green, and never stub behavior to fake it. Stuck, or
+a plan wrong about the codebase → stop and report.
+
+**Reviewer.** Diffs every target against its base branch and judges it against
+`spec.md`: requirement coverage first, then real bugs with a concrete failure
+scenario, dishonest tests, tests that buy no signal, harmful convention breaks.
+Not formatting, naming taste or hypotheticals. Findings are `blocking` (spec
+violated, missing test, real bug) or `minor` (delivery-safe — test noise is
+always minor), each written `<target>:path:line — problem — required fix`.
+Replies `VERDICT: pass | fail`, spec coverage as `<n>/<total>`, then the
+findings list. Changes nothing.
 
 ## Phase 0 — brainstorm (interactive, human in the loop)
 
@@ -227,9 +261,13 @@ Input: the user's feature idea (from `/omni <idea>`).
       assume every target exists.
 7. If 6c blocked the run, tell the user which target failed and stop here.
    Otherwise announce: "**Omnislash cast — pipeline tự chém đến deliver.** Theo dõi: /omni-status. Hủy:
-   /omni-abort." Then **end your turn without spawning anything** — the
-   gatekeeper binds the run to this session at that boundary and comes back
-   telling you to start planning. From here, do not ask the human anything.
+   /omni-abort." Then, **if a gatekeeper is enforcing this session, end your
+   turn without spawning anything** — it binds the run to this session at that
+   boundary and comes back telling you to start planning. If nothing is
+   enforcing (see *If nothing is enforcing*), do not end the turn: the state is
+   already written, so continue straight into planning in this same turn —
+   there is no next turn to be woken for, and a run that stops here is a run
+   nobody restarts. Either way, from here on do not ask the human anything.
 
 ## Phase 1 — planning
 
@@ -249,7 +287,7 @@ Update state: `task_total`, `phase: "implementing"`, `task_index: 0`.
 ## Phase 2 — implementing
 
 For each task N in `plan.md`, read its `**Target:**` line, look that target up
-in `state.json`, and spawn a fresh `implementer` (foreground — wait
+in `state.json`, and spawn a fresh `implementer` role (foreground — wait
 for it to return before doing anything else) with: that target's `workdir` and
 `test_command`, `spec.md` + `plan.md` paths, "implement ONLY task N", and the
 commit rules below. The implementer sees one directory; it never needs to know
@@ -291,7 +329,7 @@ Each iteration:
    - **No blocking findings AND tests pass** → `phase: "delivering"`.
    - **Blocking findings** → increment `review_iter`. If `review_iter >
      max_review_iters` → `blocked` (reason: unresolved findings, list them).
-     Otherwise spawn an `implementer` with the findings as its task list
+     Otherwise spawn an `implementer` role with the findings as its task list
      (same TDD + commit rules), then loop back to step 1.
    - Minor findings: include them in the implementer's task list alongside
      blockings if any exist; if only minors remain, spawn one implementer to
@@ -382,3 +420,8 @@ an ambiguous nit (pick the spec-consistent reading and note it in report.md).
    the gatekeeper ever sees it. If it does lapse, write it again and stop again
    — nothing is lost. A run owned by another host cannot be claimed: say so
    and stop.
+
+   **With no gatekeeper** (see *If nothing is enforcing*) there is nothing to
+   raise the flag to and nothing that will wake you: write the reconciled
+   `task_index` and `next_action`, then continue from `next_action` immediately,
+   in this same turn. Never wait to be bound.
