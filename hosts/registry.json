@@ -38,6 +38,6 @@
     "install": [
       "add \"omni-pipeline@git+https://github.com/himkit/omni-pipeline-plugin.git\" to the \"plugin\" array in opencode.json"
     ],
-    "verified": null
+    "verified": "2026-09-09"
   }
 }
