@@ -59,3 +59,22 @@ class SessionStartTest(HookCase):
         self.write_run("r1", session_id="codex-fresh")
         self.assertEqual(self.notice(session_id="fresh", cwd="/repo",
                                      env={"OMNI_HOST": "codex"}), "")
+
+    def test_stranded_run_is_announced_from_a_second_targets_worktree(self):
+        self.write_run("r1", session_id="claude-dead", targets=[
+            {"name": "api", "repo": "/repo", "workdir": "/repo"},
+            {"name": "web", "repo": "/web", "workdir": "/wt/web"},
+        ])
+        text = self.notice(session_id="fresh", cwd="/wt/web")
+        self.assertIn("r1", text)
+
+    def test_malformed_targets_still_announce_from_the_primary_directory(self):
+        self.write_run("r1", session_id="claude-dead", targets=["junk", None])
+        self.assertIn("r1", self.notice(session_id="fresh", cwd="/repo"))
+
+    def test_targets_do_not_widen_the_session_start_match(self):
+        self.write_run("r1", session_id="claude-dead", targets=[
+            {"name": "api", "repo": "/repo", "workdir": "/repo"},
+            {"name": "web", "repo": "/web", "workdir": "/wt/web"},
+        ])
+        self.assertEqual(self.notice(session_id="fresh", cwd="/elsewhere"), "")

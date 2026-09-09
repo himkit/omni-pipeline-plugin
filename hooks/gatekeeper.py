@@ -9,12 +9,13 @@ Design rules:
 - FAIL-OPEN: any error, missing file, or bad JSON must allow the stop.
   A broken gatekeeper must never trap a session.
 - Ownership handshake: the gatekeeper never adopts a session on its own.
-  For an unbound run (session_id null) whose repo/workdir (or resume_cwd,
-  written by /omni-resume) contains this session's cwd, it blocks ONCE with
-  an offer naming this session's id; the orchestrator binds by writing that
-  id into state.json itself. A session that ignores the offer is never
-  blocked by that run again (tracked in adopt_offers), so unrelated sessions
-  in the same repo lose at most one turn.
+  For an unbound run (session_id null) whose repo/workdir, any target's
+  repo/workdir, or resume_cwd (written by /omni-resume) contains this
+  session's cwd, it blocks ONCE with an offer naming this session's id; the
+  orchestrator binds by writing that id into state.json itself. A session
+  that ignores the offer is never blocked by that run again (tracked in
+  adopt_offers), so unrelated sessions in the same repo lose at most one
+  turn.
 - Safety valve, gatekeeper-enforced: the block counter (`gk_blocks`) and the
   progress signature it is keyed to (`gk_fingerprint`) are owned and written
   by this hook alone, never read from what the orchestrator wrote. The
@@ -69,6 +70,24 @@ def inside(cwd, base):
     return cwd == base or cwd.startswith(base.rstrip("/") + "/")
 
 
+def run_dirs(state):
+    """Every directory a run lives in: the primary workdir/repo pair, then each
+    target's workdir and repo. Ordered, deduplicated, falsy and non-string
+    entries dropped. A malformed `targets` contributes nothing — fail-open."""
+    dirs = [state.get("workdir"), state.get("repo")]
+    targets = state.get("targets")
+    if isinstance(targets, list):
+        for target in targets:
+            if isinstance(target, dict):
+                dirs.append(target.get("workdir"))
+                dirs.append(target.get("repo"))
+    out = []
+    for d in dirs:
+        if isinstance(d, str) and d and d not in out:
+            out.append(d)
+    return out
+
+
 def qualify(sid):
     """This host's session id, namespaced so two hosts sharing the runs dir
     can never be mistaken for each other."""
@@ -110,7 +129,7 @@ def takeover_claim(state, cwd, now):
     if requested <= 0 or now - requested > TAKEOVER_TTL_SEC:
         return False
     claim_cwd = state.get("takeover_cwd")
-    bases = (claim_cwd,) if claim_cwd else (state.get("workdir"), state.get("repo"))
+    bases = [claim_cwd] if claim_cwd else run_dirs(state)
     return any(inside(cwd, b) for b in bases)
 
 
@@ -210,7 +229,9 @@ def main():
             print(json.dumps({"decision": "block", "reason": (
                 "[omni gatekeeper] Run '%s' now belongs to session %s. You no "
                 "longer own it: spawn nothing, write nothing under %s. Tell the "
-                "user it moved, then stop — you will not be blocked again." % (slug, state.get("session_id"), state.get("workdir"))
+                "user it moved, then stop — you will not be blocked again."
+                % (slug, state.get("session_id"),
+                   ", ".join(run_dirs(state)) or state.get("workdir"))
             )}))
             return
 
@@ -218,8 +239,7 @@ def main():
             offers = state.get("adopt_offers") or []
             if me in offers or sid in offers:
                 continue  # offered before, session declined by not binding
-            bases = (state.get("workdir"), state.get("repo"),
-                     state.get("resume_cwd"))
+            bases = run_dirs(state) + [state.get("resume_cwd")]
             if not any(inside(cwd, b) for b in bases):
                 continue
             offers.append(me)
