@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 docs/superpowers/
+.opencode/node_modules/
+.opencode/package.json
+.opencode/bun.lock
+.opencode/package-lock.json
