@@ -7,20 +7,35 @@ description: Autonomous feature pipeline — brainstorm an idea into a locked sp
 
 You are the **orchestrator**. You never write feature code yourself — you run the
 state machine, spawn subagents (creep waves) per phase, verify their output, and
-keep `state.json` truthful. A Stop hook (the gatekeeper) blocks this session from
-stopping while a run is mid-pipeline, so the only legitimate exits are:
+keep `state.json` truthful. The gatekeeper — when this host has one — blocks
+this session from stopping while a run is mid-pipeline, so the only legitimate
+exits are:
 `done`, `blocked` (with a written reason), or `aborted` (via /omni-abort).
 
-**Host differences.** Subagents are named `omni:planner` / `omni:implementer` /
-`omni:reviewer` in Claude Code and `omni-planner` / `omni-implementer` /
-`omni-reviewer` in opencode — spawn whichever exists in this session. The
-enforcer differs too: Claude Code blocks the stop from a Stop hook, opencode
-re-prompts the session from the `omni-gatekeeper` plugin on `session.idle`.
-Both feed you `next_action`, both trip the same safety valve, and everything
-below applies unchanged.
+**Roles, not agent names.** The pipeline has three worker roles — `planner`,
+`implementer`, `reviewer` — and this session is the `orchestrator`. How a role
+is spawned depends on what this session offers; see "Spawning subagents". The
+enforcer differs per host too (a Stop hook that refuses to let the session
+stop, or a plugin that re-prompts the session when it goes idle) and some
+hosts have none. Whatever is or is not watching, **you** are responsible for
+continuing until `done` or `blocked`; the enforcer only feeds `next_action`
+back when you drift.
 
 **The human touches the pipeline exactly twice: approving the spec, and answering
 run-config questions. After that, zero questions until `done` or `blocked`.**
+
+## Entry points
+
+Hosts with slash commands expose these as `/omni`, `/omni-status`,
+`/omni-resume`, `/omni-abort`. A host without them reaches the same entry by
+asking for this skill with the intent named below.
+
+| Entry | Intent |
+|---|---|
+| `omni <idea>` | Start a run: Phase 0 brainstorm with the idea, then hands-off to `done`. |
+| `omni-status [run-id]` | Read-only scoreboard of `~/.omni-pipeline/runs/*/state.json`: phase, task i/n, review iter, branch, targets. |
+| `omni-resume [run-id]` | Resume protocol below: rebuild context, reconcile with git, claim, stop. |
+| `omni-abort [run-id]` | Abort protocol below: set `aborted` first, report, ask once about cleanup. |
 
 ## Run directory (outside the repo)
 
@@ -116,15 +131,32 @@ Phases: `brainstorm → planning → implementing → reviewing → delivering �
   boundary. To take over an existing run, raise the flag (see Resume protocol);
   never edit `session_id` by hand, in either direction.
 - The gatekeeper only arms once `phase` reaches `planning`. Brainstorm is free.
+- **If nothing is enforcing.** On a host with no gatekeeper, at the start of
+  every turn while a run you started is in a running phase, re-read its
+  `state.json` and act on `next_action`. "I have nothing to do" is a bug:
+  re-read state. The 15-nudge safety valve does not exist here, so a genuinely
+  stuck run must be set to `blocked` by you.
 
 ## Spawning subagents — foreground, one at a time
 
-**Always spawn in the foreground.** In Claude Code that means
-`run_in_background: false` on the Agent tool; in opencode the native `task`
-tool is already synchronous — await it, never fire-and-forget. Your very next
-step always depends on the agent's result (run the tests, check the tree,
-update `task_index`, spawn the next task), so nothing useful can happen while
-it runs.
+**Pick the spawn mechanism by what this session has, in this order:**
+
+1. A named agent for the role exists — this plugin's namespace joined to the
+   role name, colon-separated where the host namespaces plugin agents,
+   hyphen-separated where it does not. Spawn it.
+2. No named agent, but the session can spawn subagents with a custom prompt.
+   Read `agents/<role>.md` from this plugin (it sits beside the `skills/`
+   directory this skill was loaded from), strip its frontmatter, and use the
+   body as the subagent's system prompt, followed by the task inputs listed in
+   the phase. Give the child a clean context, not a copy of this conversation.
+3. The session cannot spawn subagents. Do the role's work yourself, in this
+   session, one task at a time, following the same inputs and outputs the
+   phase describes. Say so once in `report.md`.
+
+**Always spawn in the foreground.** Wait for the agent's result before your
+next step — never start an agent and end the turn. Your very next step always
+depends on the result (run the tests, check the tree, update `task_index`,
+spawn the next task), so nothing useful can happen while it runs.
 
 A background spawn ends your turn the instant the agent starts. The gatekeeper
 then sees a mid-pipeline run and blocks the stop, you have nothing to do but
@@ -201,7 +233,7 @@ Input: the user's feature idea (from `/omni <idea>`).
 
 ## Phase 1 — planning
 
-Spawn the `omni:planner` agent (foreground). Prompt must include: absolute paths of
+Spawn the `planner` role (foreground). Prompt must include: absolute paths of
 `spec.md` and the run dir, **every target** as `name`, `workdir`,
 `base_branch` and `test_command`, and the instruction to write `plan.md` into
 the run dir.
@@ -217,7 +249,7 @@ Update state: `task_total`, `phase: "implementing"`, `task_index: 0`.
 ## Phase 2 — implementing
 
 For each task N in `plan.md`, read its `**Target:**` line, look that target up
-in `state.json`, and spawn a fresh `omni:implementer` agent (foreground — wait
+in `state.json`, and spawn a fresh `implementer` (foreground — wait
 for it to return before doing anything else) with: that target's `workdir` and
 `test_command`, `spec.md` + `plan.md` paths, "implement ONLY task N", and the
 commit rules below. The implementer sees one directory; it never needs to know
@@ -247,7 +279,7 @@ target `workdir`.
 Each iteration:
 1. Run every target's test command in its `workdir`. Failures → treat as
    blocking findings, prefixed with the target name.
-2. Spawn `omni:reviewer` (foreground) with: `spec.md` and `plan.md` paths,
+2. Spawn the `reviewer` role (foreground) with: `spec.md` and `plan.md` paths,
    every target as `name`, `workdir` and `base_branch` (for
    `git diff <base>...HEAD` in each), and the required output format. Finding
    paths come back as `<name>:path/file.ext:line`; pass them to the implementer
@@ -259,7 +291,7 @@ Each iteration:
    - **No blocking findings AND tests pass** → `phase: "delivering"`.
    - **Blocking findings** → increment `review_iter`. If `review_iter >
      max_review_iters` → `blocked` (reason: unresolved findings, list them).
-     Otherwise spawn a `omni:implementer` with the findings as its task list
+     Otherwise spawn an `implementer` with the findings as its task list
      (same TDD + commit rules), then loop back to step 1.
    - Minor findings: include them in the implementer's task list alongside
      blockings if any exist; if only minors remain, spawn one implementer to
@@ -348,5 +380,5 @@ an ambiguous nit (pick the spec-consistent reading and note it in report.md).
    Claiming last and stopping is what keeps the 5-minute window honest: raise
    the flag before a long reconcile or a spawned agent and it expires before
    the gatekeeper ever sees it. If it does lapse, write it again and stop again
-   — nothing is lost. A run owned by the other host cannot be claimed: say so
+   — nothing is lost. A run owned by another host cannot be claimed: say so
    and stop.
