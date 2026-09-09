@@ -185,14 +185,13 @@ into the behavior that uses them. Every spec requirement is covered, plus a
 final acceptance-criteria task. A contradictory spec is reported, not
 improvised around. Writes no feature code.
 
-**Implementer.** One task, or one set of review findings, in one `workdir`,
-under strict TDD: write the named test, confirm it fails for the right reason,
-add the minimal code to green, refactor, then run the full suite. One commit
-per task, subject `<type>(omni-task-N): <subject>`; findings commit as
-`fix: <finding>`. Never a Co-Authored-By trailer, never a push, nothing touched
-outside that `workdir`, nothing beyond the assigned scope. Never weaken, skip
-or delete a test to reach green, and never stub behavior to fake it. Stuck, or
-a plan wrong about the codebase → stop and report.
+**Implementer.** One task, or one set of findings, in one `workdir`, under
+strict TDD: write the named test, confirm it fails for the right reason, add
+minimal code to green, refactor, run the full suite. One commit per task,
+subject `<type>(omni-task-N): <subject>`; findings commit as `fix: <finding>`.
+No Co-Authored-By trailer, no push, nothing outside that `workdir` or the
+assigned scope. Never weaken, skip or delete a test to reach green, and never
+stub behavior to fake it. Stuck, or a wrong plan → stop and report.
 
 **Reviewer.** Diffs every target against its base branch and judges it against
 `spec.md`: requirement coverage first, then real bugs with a concrete failure
