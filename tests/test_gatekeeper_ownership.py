@@ -1,5 +1,6 @@
 """Today's gatekeeper behaviour, pinned before it changes."""
 import time
+import os
 
 from omni_hook_harness import HookCase
 
@@ -92,3 +93,52 @@ class HostPrefixTest(HookCase):
         self.write_run("r1", session_id=None)
         self.run_hook(session_id="s2", env={"OMNI_HOST": "not-a-host"})
         self.assertEqual(self.read_state("r1")["adopt_offers"], ["claude-s2"])
+
+
+class RegistryDrivenHostTest(HookCase):
+    """A host added to the registry is accepted by the hook with no code change."""
+
+    def test_registry_host_qualifies_ids_with_its_prefix(self):
+        import json as _json
+        reg = os.path.join(self.home, "registry.json")
+        with open(reg, "w") as f:
+            _json.dump({
+                "claude": {"prefix": "claude-"},
+                "codex": {"prefix": "codex-"},
+                "opencode": {"prefix": "opencode-"},
+                "cursor": {"prefix": "cursor-"},
+            }, f)
+        self.write_run("r1", session_id=None)
+        out = self.run_hook(session_id="s9",
+                            env={"OMNI_HOST": "cursor", "OMNI_REGISTRY": reg})
+        self.assertEqual(out.get("decision"), "block")
+        self.assertEqual(self.read_state("r1")["adopt_offers"], ["cursor-s9"])
+
+    def test_prefix_field_overrides_the_id(self):
+        """`prefix` is the source of truth, not the id: a host whose product
+        name differs from its registry key still qualifies ids with its own
+        prefix."""
+        import json as _json
+        reg = os.path.join(self.home, "registry.json")
+        with open(reg, "w") as f:
+            _json.dump({
+                "claude": {"prefix": "claude-"},
+                "droid": {"prefix": "factory-"},
+            }, f)
+        self.write_run("r1", session_id=None)
+        out = self.run_hook(session_id="s9",
+                            env={"OMNI_HOST": "droid", "OMNI_REGISTRY": reg})
+        self.assertEqual(out.get("decision"), "block")
+        self.assertEqual(self.read_state("r1")["adopt_offers"], ["factory-s9"])
+
+    def test_run_owned_by_a_registry_host_is_not_claimable_by_claude(self):
+        import json as _json
+        reg = os.path.join(self.home, "registry.json")
+        with open(reg, "w") as f:
+            _json.dump({
+                "claude": {"prefix": "claude-"},
+                "cursor": {"prefix": "cursor-"},
+            }, f)
+        self.write_run("r1", session_id="cursor-s9")
+        out = self.run_hook(session_id="s1", env={"OMNI_REGISTRY": reg})
+        self.assertEqual(out, {})

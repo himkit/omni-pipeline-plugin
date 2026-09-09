@@ -1,5 +1,5 @@
 /**
- * omni-gatekeeper — opencode port of the omni Stop-hook gatekeeper.
+ * omni — opencode plugin: registers the pipeline and enforces it on idle.
  *
  * Claude Code blocks a session from stopping. opencode has no equivalent, so
  * this plugin listens for `session.idle` and re-prompts the session instead:
@@ -29,21 +29,83 @@
  */
 
 import * as fs from "node:fs/promises"
+import { readFileSync, readdirSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
+import { fileURLToPath } from "node:url"
 import type { Plugin } from "@opencode-ai/plugin"
 
 const RUNNING_PHASES = new Set(["planning", "implementing", "reviewing", "delivering"])
 const MAX_CONSECUTIVE_BLOCKS = 15
 const OMNI_HOME = process.env.OMNI_HOME || path.join(os.homedir(), ".omni-pipeline")
 const RUNS_DIR = path.join(OMNI_HOME, "runs")
-// This plugin only ever runs inside opencode, so HOST_PREFIX is fixed. The
-// known set is not: Claude Code, codex (via ~/.codex/hooks.json) and opencode
-// all share the runs dir, and an id whose prefix is missing here would be
-// attributed to whoever read it — letting one host take over another's run.
-const KNOWN_HOSTS = ["claude", "codex", "opencode"] as const
-const HOST_PREFIX = "opencode-"
-const KNOWN_PREFIXES = KNOWN_HOSTS.map((h) => `${h}-`)
+// This plugin only ever runs inside opencode, so which host it is is fixed;
+// the prefix that host writes is not — hosts/registry.json declares it. The
+// known set is not fixed either: Claude Code, Codex (via its plugin hook
+// manifest) and opencode all share the runs dir, and an id whose prefix is
+// missing here would be attributed to whoever read it — letting one host take
+// over another's run.
+const FALLBACK_HOSTS = ["claude", "codex", "opencode"]
+const REGISTRY_PATH = path.resolve(
+	path.dirname(fileURLToPath(import.meta.url)),
+	"../../hosts/registry.json",
+)
+
+/** Hosts and their session-id prefixes from hosts/registry.json; the builtin
+ *  three with `<id>-` prefixes if it is unreadable. OMNI_REGISTRY overrides the
+ *  path, as it does on the Python side.
+ *
+ *  The prefix is the registry's to declare — a host whose product name differs
+ *  from its registry key says so there — and `<id>-` is only the fallback.
+ *
+ *  FAIL-OPEN like everything else here: a broken registry must not disarm the
+ *  gatekeeper, and it must not let one host adopt another's run either — the
+ *  fallback is exactly the set that was hard-coded before the registry. */
+export function loadRegistry(registryPath?: string): {
+	hosts: string[]
+	prefixes: string[]
+	prefixOf: (host: string) => string
+} {
+	let hosts: string[] = []
+	let declared: Record<string, string> = {}
+	try {
+		const file = registryPath || process.env.OMNI_REGISTRY || REGISTRY_PATH
+		const parsed = JSON.parse(readFileSync(file, "utf8")) as unknown
+		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+			for (const [id, entry] of Object.entries(parsed as Record<string, unknown>)) {
+				if (!id) continue
+				hosts.push(id)
+				const prefix = (entry as { prefix?: unknown } | null)?.prefix
+				if (typeof prefix === "string" && prefix) declared[id] = prefix
+			}
+		}
+	} catch {
+		// fall through
+	}
+	if (!hosts.length) {
+		hosts = [...FALLBACK_HOSTS]
+		declared = {}
+	}
+	const prefixOf = (host: string): string => declared[host] || `${host}-`
+	const prefixes: string[] = []
+	for (const host of hosts) {
+		const prefix = prefixOf(host)
+		if (!prefixes.includes(prefix)) prefixes.push(prefix)
+	}
+	return { hosts, prefixes, prefixOf }
+}
+
+/** Host ids only — the shape the gatekeeper's callers used before prefixes
+ *  came out of the registry. */
+export function loadKnownHosts(registryPath?: string): string[] {
+	return loadRegistry(registryPath).hosts
+}
+
+const REGISTRY = loadRegistry()
+// This plugin only ever runs inside opencode, so its own prefix is the one the
+// registry declares for that host (`opencode-` when the registry is unreadable).
+const HOST_PREFIX = REGISTRY.prefixOf("opencode")
+const KNOWN_PREFIXES = REGISTRY.prefixes
 const TAKEOVER_TTL_SEC = 300
 
 type RunTarget = {
@@ -206,7 +268,131 @@ function counter(state: RunState): number {
 	return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
 }
 
-export const OmniGatekeeper: Plugin = async ({ client, directory }) => {
+const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
+
+/** Where the host-neutral body (`agents/`, `commands/`, `skills/`) lives.
+ *  OMNI_PLUGIN_ROOT overrides it the way OMNI_REGISTRY overrides the registry
+ *  path: the fail-open wrapper around registration is only testable if the
+ *  root can be made unreadable. */
+function pluginRoot(): string {
+	return process.env.OMNI_PLUGIN_ROOT || PLUGIN_ROOT
+}
+
+type AgentConfigLike = {
+	description?: string
+	prompt: string
+	mode: "primary" | "subagent"
+	temperature?: number
+	tools?: Record<string, boolean>
+	permission?: Record<string, unknown>
+}
+type CommandLike = { template: string; description?: string; agent?: string }
+type ConfigLike = {
+	skills?: { paths?: string[] }
+	agent?: Record<string, unknown>
+	command?: Record<string, unknown>
+}
+
+/** The only opencode-specific facts about each role. Bodies come from agents/. */
+const ROLES: Record<string, { agent: string; mode: "primary" | "subagent"; tools?: Record<string, boolean>; temperature?: number; permission?: Record<string, unknown> }> = {
+	orchestrator: {
+		agent: "omni",
+		mode: "primary",
+		permission: {
+			bash: "allow",
+			edit: "allow",
+			write: "allow",
+			read: "allow",
+			task: "allow",
+			webfetch: "ask",
+			// The run directory and worktrees live outside the project, and the
+			// pipeline is zero-touch — an external_directory prompt there would
+			// stall the run.
+			external_directory: { "*": "ask", "~/.omni-pipeline/*": "allow", "~/.omni-pipeline/**": "allow" },
+		},
+	},
+	// `tools` is a per-tool override on a default-enabled set, so the `false`
+	// entries are what actually restrict a role — an allow-only map restricts
+	// nothing. Keep the denials: the planner and the reviewer must not spawn
+	// subagents or reach the network, and the reviewer must not write at all.
+	planner: {
+		agent: "omni-planner",
+		mode: "subagent",
+		tools: { read: true, grep: true, glob: true, list: true, bash: true, write: true, edit: false, task: false, webfetch: false },
+	},
+	implementer: {
+		agent: "omni-implementer",
+		mode: "subagent",
+		tools: { read: true, grep: true, glob: true, list: true, bash: true, write: true, edit: true, task: false, webfetch: false },
+		// The implementer is the only role that changes the tree, and the run is
+		// zero-touch: a permission prompt mid-TDD would stall it.
+		permission: { bash: "allow", edit: "allow", write: "allow" },
+	},
+	reviewer: {
+		agent: "omni-reviewer",
+		mode: "subagent",
+		temperature: 0.1,
+		tools: { read: true, grep: true, glob: true, list: true, bash: true, write: false, edit: false, task: false, webfetch: false },
+	},
+}
+
+function splitFrontmatter(text: string): { meta: Record<string, string>; body: string } {
+	const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
+	if (!m) return { meta: {}, body: text.trim() }
+	const meta: Record<string, string> = {}
+	for (const line of m[1].split(/\r?\n/)) {
+		const i = line.indexOf(":")
+		if (i > 0) meta[line.slice(0, i).trim()] = line.slice(i + 1).trim()
+	}
+	return { meta, body: m[2].trim() }
+}
+
+export function buildRegistration(root: string = pluginRoot()) {
+	const agents: Record<string, AgentConfigLike> = {}
+	for (const [role, cfg] of Object.entries(ROLES)) {
+		const { meta, body } = splitFrontmatter(readFileSync(path.join(root, "agents", `${role}.md`), "utf8"))
+		const entry: AgentConfigLike = { prompt: body, mode: cfg.mode, description: meta.description }
+		if (cfg.tools) entry.tools = cfg.tools
+		if (cfg.temperature !== undefined) entry.temperature = cfg.temperature
+		if (cfg.permission) entry.permission = cfg.permission
+		agents[cfg.agent] = entry
+	}
+	const commands: Record<string, CommandLike> = {}
+	for (const file of readdirSync(path.join(root, "commands")).filter((f) => f.endsWith(".md")).sort()) {
+		const { meta, body } = splitFrontmatter(readFileSync(path.join(root, "commands", file), "utf8"))
+		commands[file.slice(0, -3)] = { template: body, description: meta.description, agent: "omni" }
+	}
+	return { skillsPath: path.join(root, "skills"), agents, commands }
+}
+
+/** Mutates `config` in place. Existing user entries win and are reported. */
+export function applyRegistration(
+	config: ConfigLike,
+	reg: ReturnType<typeof buildRegistration>,
+	warn: (message: string) => void,
+): void {
+	config.skills = config.skills || {}
+	config.skills.paths = config.skills.paths || []
+	if (!config.skills.paths.includes(reg.skillsPath)) config.skills.paths.push(reg.skillsPath)
+	config.agent = config.agent || {}
+	for (const [name, entry] of Object.entries(reg.agents)) {
+		if (name in config.agent) {
+			warn(`agent "${name}" is already defined in your config; omni's definition was skipped`)
+			continue
+		}
+		config.agent[name] = entry
+	}
+	config.command = config.command || {}
+	for (const [name, entry] of Object.entries(reg.commands)) {
+		if (name in config.command) {
+			warn(`command "${name}" is already defined in your config; omni's definition was skipped`)
+			continue
+		}
+		config.command[name] = entry
+	}
+}
+
+export const OmniPlugin: Plugin = async ({ client, directory }) => {
 	/** Sessions currently inside handleIdle — guards against re-entry only.
 	 *  Deliberately NOT a "nudge outstanding" flag: opencode emits session.idle
 	 *  for a nudge's own turn BEFORE the prompt call resolves, so keying off the
@@ -216,7 +402,7 @@ export const OmniGatekeeper: Plugin = async ({ client, directory }) => {
 
 	const log = async (message: string, level: "debug" | "info" | "warn" = "info") => {
 		try {
-			await client.app.log({ body: { service: "omni-gatekeeper", level, message } })
+			await client.app.log({ body: { service: "omni", level, message } })
 		} catch {
 			// fail-open
 		}
@@ -369,6 +555,13 @@ export const OmniGatekeeper: Plugin = async ({ client, directory }) => {
 	await log(`armed — watching ${RUNS_DIR}`, "debug")
 
 	return {
+		config: async (config) => {
+			try {
+				applyRegistration(config as ConfigLike, buildRegistration(), (m) => void log(m, "warn"))
+			} catch (err) {
+				await log(`registration failed: ${String(err)}`, "warn") // fail-open: the gatekeeper still arms
+			}
+		},
 		event: async ({ event }) => {
 			try {
 				if (event.type === "session.idle") {

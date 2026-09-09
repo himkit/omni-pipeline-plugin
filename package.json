@@ -1,22 +1,25 @@
 {
   "name": "omni-pipeline",
-  "version": "0.5.0",
-  "description": "Autonomous feature pipeline for Claude Code, codex and opencode: brainstorm a spec, then plan → implement (TDD) → review → deliver on a feature branch with zero human touch.",
-  "bin": {
-    "omni-pipeline": "./install.mjs"
-  },
+  "version": "1.0.0",
+  "description": "Autonomous feature pipeline for Claude Code, Codex and opencode: brainstorm a spec, then plan → implement (TDD) → review → deliver on a feature branch with zero human touch.",
   "type": "module",
+  "main": ".opencode/plugins/omni.ts",
   "engines": {
     "node": ">=18"
   },
   "files": [
-    "install.mjs",
+    ".opencode",
+    "agents",
+    "commands",
+    "hooks",
+    "hosts",
+    "skills",
     "README.md"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/himkit/omni-pipeline-plugin.git"
   },
-  "keywords": ["automation", "pipeline", "tdd", "subagents", "workflow", "spec-driven"],
+  "keywords": ["automation", "pipeline", "tdd", "subagents", "workflow", "spec-driven", "opencode-plugin"],
   "license": "MIT"
 }

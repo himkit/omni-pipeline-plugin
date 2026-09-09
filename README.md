@@ -6,82 +6,57 @@ locked spec, then plans, implements test-first, reviews and delivers on an
 
 ## Install
 
-```bash
-npx github:himkit/omni-pipeline-plugin
+Installation differs by host. If you use more than one, install omni in each.
+Every host installs from this repository through its own plugin mechanism;
+nothing is written into your config directory by hand.
+
+### Claude Code
+
+```text
+/plugin marketplace add himkit/omni-pipeline-plugin
+/plugin install omni@omni-pipeline-plugin
 ```
 
-Pick which coding agents to wire up — Claude Code, codex, opencode — and the
-installer does the rest. It clones itself to `~/.omni-pipeline/src` and points
-every host at that one checkout, so re-running the command updates all of them.
+### Codex
 
-| Flag | Effect |
-|---|---|
-| `--hosts claude,codex` | skip the picker, install into these only |
-| `--yes`, `-y` | skip the picker, use every detected host |
-| `--ref <ref>` | check out a specific branch or tag |
-| `--dry-run` | print the exact plan — every command, hook and symlink — and change nothing |
-| `--uninstall` | remove host wiring; the checkout and run state stay |
-| `--help`, `-h` | usage |
+```bash
+codex plugin marketplace add himkit/omni-pipeline-plugin
+codex plugin add omni@omni-pipeline-plugin
+```
 
-`--dry-run` combines with `--uninstall` too, and touches nothing at all: no
-clone, no fetch, no config write. It is the way to see what a run would do to
-your hosts before letting it.
+Codex loads the plugin's `hooks/hooks-codex.json`, so the gatekeeper's Stop
+hook and the session-start reminder run without touching `~/.codex/hooks.json`.
+Subagents need `multi_agent = true` under `[features]` in `~/.codex/config.toml`;
+without it the orchestrator does each role inline. Codex has no slash-command
+surface for plugins — ask for the `pipeline` skill with the intent
+(`omni-status`, `omni-resume`, `omni-abort`).
 
-The checkout at `~/.omni-pipeline/src` must be clean and up to date with its
-upstream. If it is dirty, detached, on a branch with no upstream, or carrying
-commits the remote does not have, the installer says so and wires nothing —
-rather than silently pointing every host at stale code.
+### opencode
 
-A host that is not on your `PATH` shows in the picker but cannot be selected,
-except when uninstalling — you can always unwire a host whose binary you have
-already removed. Piped or non-interactive input skips the picker and uses every
-detected host. If any host fails to wire up, the installer says which and exits
-non-zero, so it is safe to chain in a setup script.
+Add to the `plugin` array in `opencode.json` and restart:
 
-`OMNI_HOME` relocates the checkout and the state the hooks resolve — it exists
-primarily as the seam the test suite writes through. It does **not** relocate a
-whole install on its own: the prompts hardcode the default path, so moving a
-live install also means editing the paths in `skills/pipeline/SKILL.md`, the
-`/omni-*` commands, and the permission globs in `.opencode-plugin/agents/omni.md`.
+```json
+{ "plugin": ["omni-pipeline@git+https://github.com/himkit/omni-pipeline-plugin.git"] }
+```
 
-opencode gets more than a skills path: subagents, slash commands, and a
-replacement for the Claude Code Stop hook, all symlinked from the
-`~/.omni-pipeline/src` checkout into `~/.config/opencode` (honouring
-`$OPENCODE_CONFIG_DIR`). The gatekeeper becomes a plugin that re-prompts the
-session on `session.idle` instead of blocking a stop, and the subagents are
-renamed `omni-planner` / `omni-implementer` / `omni-reviewer` because opencode
-has one flat agent namespace. Run state is shared with the other hosts in
-`~/.omni-pipeline/runs/`. Because the symlinks point into the checkout, editing
-a file in `~/.omni-pipeline/src` takes effect in opencode immediately. See
-[`.opencode-plugin/README.md`](.opencode-plugin/README.md) for the details.
+The plugin registers the `omni` agent, the `omni-planner` / `omni-implementer`
+/ `omni-reviewer` subagents, the `/omni*` commands and the `pipeline` skill,
+and re-prompts the session on `session.idle` in place of a Stop hook. Pin with
+`#v1.0.0`.
+
+### Any other host
+
+```bash
+npx skills add himkit/omni-pipeline-plugin
+```
+
+Skills-only: no gatekeeper and no subagents. The skill re-reads `state.json`
+every turn and does each role inline. See [`hosts/README.md`](hosts/README.md)
+for the full matrix, what each tier loses, and how to add a host.
 
 A copy of the skill that also exists in `~/.claude/skills/pipeline/` (or a path
 already listed in opencode's config) shadows the one this plugin installs.
 Remove the old copy if the plugin's version does not take effect.
-
-### Codex
-
-Codex reads this plugin's `.claude-plugin/marketplace.json` directly, so
-`codex plugin add` needs no codex-specific manifest. It does ignore a plugin's
-own `hooks/hooks.json`, so the installer registers the gatekeeper in the
-user-level `~/.codex/hooks.json` instead — written atomically, backed up before
-the first change, and fenced with a `_source` key so `--uninstall` removes
-exactly what it added and nothing of yours.
-
-Its `Stop` hook is expected to block the way Claude Code's does. That is
-inferred from the codex binary's own hook vocabulary and error strings
-(`Stop hook returned decision:block without a non-empty reason`), not from an
-observed `codex exec` run.
-
-Only `Stop` is wired for codex. There is no `SessionStart` hook, so a codex
-session does not get the "unfinished run in this directory" reminder that
-Claude Code prints.
-
-Because codex runs the same `hooks/gatekeeper.py` Claude Code does, the hook
-takes its host identity from an `OMNI_HOST` environment variable, which the
-installer sets to `codex` in the command it writes. Without it a codex session
-would be labelled `claude-` and the ownership guard below could not tell the
-two apart.
 
 ## Commands
 
@@ -184,7 +159,7 @@ each. Worktrees then live at `~/.omni-pipeline/worktrees/<run-id>/<target>`.
 Targets are fixed when the run is set up — the gatekeeper answers to a session
 opened in any of them, and `/omni-resume` works from whichever one you are in.
 
-All three hosts share this directory, so `/omni-status` in one sees runs started
+Every full-tier host shares this directory, so `/omni-status` in one sees runs started
 by the others. A run is only resumable from the host that started it: each host
 prefixes the session ids it writes (`claude-`, `codex-`, `opencode-`), and the
 gatekeepers refuse a takeover across that boundary.
@@ -198,6 +173,7 @@ That leaves an empty `~/.claude/omni-plugins/worktrees/` behind. Delete it once
 no run is using it; the pipeline creates worktrees under the new path from now
 on.
 
-`OMNI_HOME` moves this directory and the checkout for the hooks and the
-installer. The prompts do not read it, so see the note under
-[Install](#install) before relocating a live install.
+`OMNI_HOME` moves this directory for the hooks and the test suite. The prompts
+hardcode `~/.omni-pipeline`, so relocating a live install also means editing
+the paths in `skills/pipeline/SKILL.md`, the `/omni-*` commands, and the
+`external_directory` permission in `.opencode/plugins/omni.ts`.

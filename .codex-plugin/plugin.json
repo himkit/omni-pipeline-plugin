@@ -1,0 +1,22 @@
+{
+  "name": "omni",
+  "version": "1.0.0",
+  "description": "Autonomous feature pipeline: brainstorm and lock a spec interactively, then plan → implement (TDD) → review loop → deliver on a feature branch with zero human touch, enforced by a Stop-hook state machine.",
+  "author": {
+    "name": "himkit",
+    "url": "https://github.com/himkit/omni-pipeline-plugin"
+  },
+  "homepage": "https://github.com/himkit/omni-pipeline-plugin",
+  "repository": "https://github.com/himkit/omni-pipeline-plugin",
+  "license": "MIT",
+  "keywords": ["automation", "pipeline", "tdd", "subagents", "workflow", "spec-driven"],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks-codex.json",
+  "interface": {
+    "displayName": "omni",
+    "shortDescription": "Spec → plan → TDD implement → review → deliver, hands-off",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "defaultPrompt": ["Use the pipeline skill to build this feature end to end:"]
+  }
+}
