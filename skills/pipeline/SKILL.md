@@ -141,9 +141,9 @@ Phases: `brainstorm → planning → implementing → reviewing → delivering �
 
 **Pick the spawn mechanism by what this session has, in this order:**
 
-1. A named agent for the role exists — this plugin's namespace joined to the
-   role name, colon-separated where the host namespaces plugin agents,
-   hyphen-separated where it does not. Spawn it.
+1. A named agent for the role exists — `omni:<role>` where the host
+   namespaces plugin agents (for example `omni:planner`), `omni-<role>` where
+   it does not (`omni-planner`). Spawn it.
 2. No named agent, but the session can spawn subagents with a custom prompt.
    Read `agents/<role>.md` from this plugin (it sits beside the `skills/`
    directory this skill was loaded from), strip its frontmatter, and use the
