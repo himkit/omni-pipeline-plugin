@@ -31,6 +31,7 @@ feature on the same day never collide). Contains:
 - `state.json` — single source of truth (schema below)
 - `spec.md` — locked spec
 - `plan.md` — written by the planner agent
+- `notes.md` — repo traps found mid-run, capped (see Phase 2)
 - `report.md` — written at deliver time
 
 ### state.json schema
@@ -137,6 +138,24 @@ conflicting commits, and a dirty tree that fails your own verification. If a
 gatekeeper message names a `next_action` you have already started, it is a
 stale nudge — do not act on it twice.
 
+## Running a test command
+
+Every time you run a target's test command — after a task, at the top of a
+review iteration, at delivery, during resume — run it exactly like this:
+
+```bash
+log=$(mktemp); ( <test_command> ) > "$log" 2>&1; echo "EXIT=$?"; tail -n 30 "$log"
+```
+
+Pass/fail is the `EXIT=` line, never the prose of the tail — a pipe into
+`tail` would report `tail`'s status, and a runner that prints a coverage table
+after its failure recap leaves a clean-looking tail. The subshell makes the
+redirect cover a compound command (`lint && test`). On `EXIT=0` the tail is
+the evidence you keep. On anything else, read the failure out of `$log`
+(`grep -n -i -B5 -A20 'fail' "$log"`, or the whole file if short) — never
+re-run the suite untrimmed to see it. The implementer runs its own full check
+the same way (see its agent file), so its report carries the same shape.
+
 ## Phase 0 — brainstorm (interactive, human in the loop)
 
 Input: the user's feature idea (from `/omni <idea>`).
@@ -208,9 +227,15 @@ the run dir.
 
 Validate the returned `plan.md`: every task must have files, a `**Target:**`
 line naming a target that exists in `state.json`, test-first steps, a verify
-command, and done-criteria. If malformed, a target is unknown, or tasks are not
-independent enough to implement sequentially without guessing, re-spawn the
-planner with the specific defects named (max 2 retries, then `blocked`).
+command, and done-criteria. Two more checks, because the implementer will see
+only its own task: nothing may sit between the `Targets:` line and `## Task 1`
+(a conventions preamble the planner wanted every task to obey belongs inside
+each task that needs it), and no task body may refer to another task by number
+or as "the earlier/previous task" — it names the file, symbol or behaviour
+instead. If malformed, a target is unknown, a preamble or cross-reference is
+present, or tasks are not independent enough to implement sequentially without
+guessing, re-spawn the planner with the specific defects named (max 2 retries,
+then `blocked`).
 
 Update state: `task_total`, `phase: "implementing"`, `task_index: 0`.
 
@@ -219,15 +244,32 @@ Update state: `task_total`, `phase: "implementing"`, `task_index: 0`.
 For each task N in `plan.md`, read its `**Target:**` line, look that target up
 in `state.json`, and spawn a fresh `omni:implementer` agent (foreground — wait
 for it to return before doing anything else) with: that target's `workdir` and
-`test_command`, `spec.md` + `plan.md` paths, "implement ONLY task N", and the
-commit rules below. The implementer sees one directory; it never needs to know
-the other targets exist.
+`test_command`, the `spec.md` path, **the full text of task N pasted from
+`plan.md`** (the header lines above `## Task 1` — title, `Branch:`,
+`Targets:` — then task N from its `## Task N:` heading to the next `## Task`
+heading or end of file), "implement ONLY task N", the lines of `notes.md`
+that bear on task N's files or behaviour (see below), and the commit rules
+below. **Do not give the implementer the `plan.md` path.** A plan of fifteen
+tasks is tens of kilobytes, and an implementer that reads all of it spends
+most of its context on tasks it is forbidden to touch; the pasted section is
+everything it needs. The implementer sees one directory; it never needs to
+know the other targets or the other tasks exist.
+
+**`notes.md`** is the run's memory of repo traps: an implementer reports a
+test harness that hangs, a premise in the plan that was wrong, a guard test
+that bites. Write each as one line, `- (task N) <trap, and what to do
+instead>`, in `notes.md` in the run dir — **at most 25 lines**; when it is
+full, drop the entries whose files no later task touches. It lives in the run
+dir so a resuming session inherits it. Pass an implementer only the lines that
+concern its task, never the whole file.
 
 After EACH task, verify yourself in that target's `workdir`:
-1. Run that target's test command — must pass.
+1. Run that target's test command as in *Running a test command* —
+   `EXIT=0` required.
 2. `git status --short` must be clean (implementer commits its own work).
-3. If either fails: re-spawn the implementer with the failure output (max 2
-   retries per task, then `blocked` with the evidence in `blocked_reason`).
+3. If either fails: re-spawn the implementer with the failure block from
+   `$log` — max 2 retries per task, then `blocked` with the evidence in
+   `blocked_reason`.
 
 Then update `task_index` and `next_action`. When all tasks are done:
 `phase: "reviewing"`, `review_iter: 0`.
@@ -245,13 +287,16 @@ target `workdir`.
 ## Phase 3 — review loop
 
 Each iteration:
-1. Run every target's test command in its `workdir`. Failures → treat as
-   blocking findings, prefixed with the target name.
+1. Run every target's test command in its `workdir` as in *Running a test
+   command*. `EXIT` non-zero → a blocking finding carrying the failure block,
+   prefixed with the target name.
 2. Spawn `omni:reviewer` (foreground) with: `spec.md` and `plan.md` paths,
    every target as `name`, `workdir` and `base_branch` (for
    `git diff <base>...HEAD` in each), and the required output format. Finding
    paths come back as `<name>:path/file.ext:line`; pass them to the implementer
-   grouped by target, each group with that target's `workdir`. Findings in two
+   grouped by target, each group with that target's `workdir` and
+   `test_command`, the `spec.md` path, the relevant `notes.md` lines and the
+   findings text — again no `plan.md` path. Findings in two
    targets mean two implementer spawns, one after the other. A finding with no
    prefix, or a prefix naming no target, resolves to the primary target; note
    that in `report.md`.
@@ -268,7 +313,8 @@ Each iteration:
 
 ## Phase 4 — delivering
 
-1. Confirm, per target: tests pass, working tree clean, all commits on
+1. Confirm, per target: tests pass (run as in *Running a test command*;
+   its tail is the evidence for step 2), working tree clean, all commits on
    `omni/<feature_slug>`.
 2. Write `report.md` to the run dir: what was built (vs spec); per target its
    branch, base, task list with commit SHAs and final test output (real
@@ -313,7 +359,8 @@ an ambiguous nit (pick the spec-consistent reading and note it in report.md).
 ## Resume protocol (/omni-resume)
 
 1. Locate the run (arg run-id, else the single non-terminal run; if several, ask).
-2. Read `state.json`, `spec.md`, `plan.md` to rebuild context.
+2. Read `state.json`, `spec.md`, `plan.md` and `notes.md` (if present) to
+   rebuild context.
 3. If blocked: get the human answer for `blocked_reason` first.
 4. **Reconcile against git.** `state.json` records what the dead session
    *intended*; git records what actually happened. For every target, in its
@@ -331,10 +378,10 @@ an ambiguous nit (pick the spec-consistent reading and note it in report.md).
    c. No subject matches in any target (a run that predates the convention) →
       keep the existing `task_index` and record in `report.md` that git could
       not confirm it.
-   d. Run every target's test command. If any fails, the last task is not
-      really done: do not advance past it — `next_action` is an implementer
-      carrying the failure output, in that target's `workdir`, under the same
-      retry budget as Phase 2.
+   d. Run every target's test command as in *Running a test command*. If
+      any fails, the last task is not really done: do not advance past it —
+      `next_action` is an implementer carrying the failure output, in that
+      target's `workdir`, under the same retry budget as Phase 2.
    e. Set `next_action` from the reconciled `task_index`: the next task, or
       `spawn reviewer` when `task_index == task_total`.
 5. Restore the working phase (blocked → the phase recorded in `next_action`)

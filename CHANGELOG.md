@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.5.1
+
+Cheaper runs, same checks. Changes to how the orchestrator spends tokens,
+none to what gets verified:
+
+- The implementer no longer receives the `plan.md` path. The orchestrator
+  pastes the text of the one task (or the review findings) into the prompt,
+  and the agent file tells the implementer not to go looking for the plan. A
+  fifteen-task plan is tens of kilobytes, and every implementer used to read
+  all of it to act on one task.
+- One way to run a test command, used by the orchestrator (after each task,
+  at the top of each review iteration, at delivery, during resume) and by the
+  implementer's full check: output to a temp file, `EXIT=` echoed, last 30
+  lines shown. Pass/fail is the exit status, so a runner that prints a
+  coverage table after its failure recap cannot pass on a clean-looking tail,
+  and a failure is read out of the log instead of re-running the suite.
+- The planner's self-containment rule now matches what the implementer sees:
+  a task may not refer to another task by number, and `plan.md` may carry no
+  preamble between its header and `## Task 1` — conventions go into the tasks
+  that need them. The orchestrator rejects a plan that breaks either.
+- `notes.md` in the run dir holds repo traps found mid-run, capped at 25
+  lines, so they survive a handover; each implementer gets only the lines that
+  concern its task.
+
 ## 0.5.0
 
 One run can now span several repositories. `state.json` carries a `targets`

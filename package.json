@@ -1,6 +1,6 @@
 {
   "name": "omni-pipeline",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Autonomous feature pipeline for Claude Code, codex and opencode: brainstorm a spec, then plan → implement (TDD) → review → deliver on a feature branch with zero human touch.",
   "bin": {
     "omni-pipeline": "./install.mjs"
