@@ -29,6 +29,7 @@ import json
 import os
 import sys
 import time
+from omni_hosts import current_host, known_hosts  # noqa: E402
 
 RUNNING_PHASES = {"planning", "implementing", "reviewing", "delivering"}
 MAX_CONSECUTIVE_BLOCKS = 15
@@ -36,13 +37,12 @@ TAKEOVER_TTL_SEC = 300
 # OMNI_HOME exists so tests never touch the user's real runs.
 OMNI_HOME = os.environ.get("OMNI_HOME") or os.path.expanduser("~/.omni-pipeline")
 RUNS_DIR = os.path.join(OMNI_HOME, "runs")
-# One gatekeeper.py serves every host: Claude Code, codex (via
-# ~/.codex/hooks.json) and opencode. OMNI_HOST says which one is running it, so
-# two hosts sharing RUNS_DIR can never be mistaken for each other. Unset or
-# unrecognised means Claude Code, the host that has always run this file.
-KNOWN_HOSTS = ("claude", "codex", "opencode")
-_HOST = (os.environ.get("OMNI_HOST") or "").strip().lower()
-HOST = _HOST if _HOST in KNOWN_HOSTS else "claude"
+# One gatekeeper.py serves every host. hosts/registry.json lists them and
+# OMNI_HOST says which one is running this file, so two hosts sharing RUNS_DIR
+# can never be mistaken for each other. Unset or unrecognised means Claude
+# Code, the host that has always run this file.
+KNOWN_HOSTS = known_hosts()
+HOST = current_host()
 HOST_PREFIX = HOST + "-"
 KNOWN_PREFIXES = tuple(h + "-" for h in KNOWN_HOSTS)
 

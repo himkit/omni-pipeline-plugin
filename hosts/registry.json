@@ -1,0 +1,43 @@
+{
+  "claude": {
+    "label": "Claude Code",
+    "tier": "full",
+    "prefix": "claude-",
+    "enforcer": "stop-hook",
+    "subagents": "namespaced",
+    "commands": "markdown",
+    "adapter": ".claude-plugin/",
+    "install": [
+      "/plugin marketplace add himkit/omni-pipeline-plugin",
+      "/plugin install omni@omni-pipeline-plugin"
+    ],
+    "verified": "2026-09-09"
+  },
+  "codex": {
+    "label": "Codex",
+    "tier": "full",
+    "prefix": "codex-",
+    "enforcer": "stop-hook",
+    "subagents": "inline-prompt",
+    "commands": "skills-only",
+    "adapter": ".codex-plugin/",
+    "install": [
+      "codex plugin marketplace add himkit/omni-pipeline-plugin",
+      "codex plugin add omni@omni-pipeline-plugin"
+    ],
+    "verified": null
+  },
+  "opencode": {
+    "label": "opencode",
+    "tier": "full",
+    "prefix": "opencode-",
+    "enforcer": "idle-plugin",
+    "subagents": "flat",
+    "commands": "config",
+    "adapter": ".opencode/",
+    "install": [
+      "add \"omni-pipeline@git+https://github.com/himkit/omni-pipeline-plugin.git\" to the \"plugin\" array in opencode.json"
+    ],
+    "verified": null
+  }
+}

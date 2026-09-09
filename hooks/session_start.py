@@ -10,15 +10,15 @@ FAIL-OPEN like the gatekeeper: any error means no notice, never an error.
 import json
 import os
 import sys
+from omni_hosts import current_host, known_hosts  # noqa: E402
 
 RUNNING_PHASES = {"planning", "implementing", "reviewing", "delivering"}
 OMNI_HOME = os.environ.get("OMNI_HOME") or os.path.expanduser("~/.omni-pipeline")
 RUNS_DIR = os.path.join(OMNI_HOME, "runs")
 # See hooks/gatekeeper.py: OMNI_HOST names the host running this hook, so a
 # run's owner is attributed to the right one. Unset means Claude Code.
-KNOWN_HOSTS = ("claude", "codex", "opencode")
-_HOST = (os.environ.get("OMNI_HOST") or "").strip().lower()
-HOST = _HOST if _HOST in KNOWN_HOSTS else "claude"
+KNOWN_HOSTS = known_hosts()
+HOST = current_host()
 
 
 def inside(cwd, base):
