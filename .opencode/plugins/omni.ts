@@ -29,7 +29,7 @@
  */
 
 import * as fs from "node:fs/promises"
-import { readFileSync } from "node:fs"
+import { readFileSync, readdirSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -232,6 +232,102 @@ function counter(state: RunState): number {
 	return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
 }
 
+const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
+
+type AgentConfigLike = {
+	description?: string
+	prompt: string
+	mode: "primary" | "subagent"
+	temperature?: number
+	tools?: Record<string, boolean>
+	permission?: Record<string, unknown>
+}
+type CommandLike = { template: string; description?: string; agent?: string }
+type ConfigLike = {
+	skills?: { paths?: string[] }
+	agent?: Record<string, unknown>
+	command?: Record<string, unknown>
+}
+
+/** The only opencode-specific facts about each role. Bodies come from agents/. */
+const ROLES: Record<string, { agent: string; mode: "primary" | "subagent"; tools?: Record<string, boolean>; temperature?: number; permission?: Record<string, unknown> }> = {
+	orchestrator: {
+		agent: "omni",
+		mode: "primary",
+		permission: {
+			bash: "allow",
+			edit: "allow",
+			write: "allow",
+			read: "allow",
+			task: "allow",
+			webfetch: "ask",
+			// The run directory and worktrees live outside the project, and the
+			// pipeline is zero-touch — an external_directory prompt there would
+			// stall the run.
+			external_directory: { "*": "ask", "~/.omni-pipeline/*": "allow", "~/.omni-pipeline/**": "allow" },
+		},
+	},
+	planner: { agent: "omni-planner", mode: "subagent", tools: { read: true, grep: true, glob: true, list: true, bash: true, write: true } },
+	implementer: { agent: "omni-implementer", mode: "subagent", tools: { read: true, grep: true, glob: true, list: true, bash: true, write: true } },
+	reviewer: { agent: "omni-reviewer", mode: "subagent", temperature: 0.1, tools: { read: true, grep: true, glob: true, list: true, bash: true } },
+}
+
+function splitFrontmatter(text: string): { meta: Record<string, string>; body: string } {
+	const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
+	if (!m) return { meta: {}, body: text.trim() }
+	const meta: Record<string, string> = {}
+	for (const line of m[1].split(/\r?\n/)) {
+		const i = line.indexOf(":")
+		if (i > 0) meta[line.slice(0, i).trim()] = line.slice(i + 1).trim()
+	}
+	return { meta, body: m[2].trim() }
+}
+
+export function buildRegistration(root: string = PLUGIN_ROOT) {
+	const agents: Record<string, AgentConfigLike> = {}
+	for (const [role, cfg] of Object.entries(ROLES)) {
+		const { meta, body } = splitFrontmatter(readFileSync(path.join(root, "agents", `${role}.md`), "utf8"))
+		const entry: AgentConfigLike = { prompt: body, mode: cfg.mode, description: meta.description }
+		if (cfg.tools) entry.tools = cfg.tools
+		if (cfg.temperature !== undefined) entry.temperature = cfg.temperature
+		if (cfg.permission) entry.permission = cfg.permission
+		agents[cfg.agent] = entry
+	}
+	const commands: Record<string, CommandLike> = {}
+	for (const file of readdirSync(path.join(root, "commands")).filter((f) => f.endsWith(".md")).sort()) {
+		const { meta, body } = splitFrontmatter(readFileSync(path.join(root, "commands", file), "utf8"))
+		commands[file.slice(0, -3)] = { template: body, description: meta.description, agent: "omni" }
+	}
+	return { skillsPath: path.join(root, "skills"), agents, commands }
+}
+
+/** Mutates `config` in place. Existing user entries win and are reported. */
+export function applyRegistration(
+	config: ConfigLike,
+	reg: ReturnType<typeof buildRegistration>,
+	warn: (message: string) => void,
+): void {
+	config.skills = config.skills || {}
+	config.skills.paths = config.skills.paths || []
+	if (!config.skills.paths.includes(reg.skillsPath)) config.skills.paths.push(reg.skillsPath)
+	config.agent = config.agent || {}
+	for (const [name, entry] of Object.entries(reg.agents)) {
+		if (name in config.agent) {
+			warn(`agent "${name}" is already defined in your config; omni's definition was skipped`)
+			continue
+		}
+		config.agent[name] = entry
+	}
+	config.command = config.command || {}
+	for (const [name, entry] of Object.entries(reg.commands)) {
+		if (name in config.command) {
+			warn(`command "${name}" is already defined in your config; omni's definition was skipped`)
+			continue
+		}
+		config.command[name] = entry
+	}
+}
+
 export const OmniPlugin: Plugin = async ({ client, directory }) => {
 	/** Sessions currently inside handleIdle — guards against re-entry only.
 	 *  Deliberately NOT a "nudge outstanding" flag: opencode emits session.idle
@@ -242,7 +338,7 @@ export const OmniPlugin: Plugin = async ({ client, directory }) => {
 
 	const log = async (message: string, level: "debug" | "info" | "warn" = "info") => {
 		try {
-			await client.app.log({ body: { service: "omni-gatekeeper", level, message } })
+			await client.app.log({ body: { service: "omni", level, message } })
 		} catch {
 			// fail-open
 		}
@@ -395,6 +491,13 @@ export const OmniPlugin: Plugin = async ({ client, directory }) => {
 	await log(`armed — watching ${RUNS_DIR}`, "debug")
 
 	return {
+		config: async (config) => {
+			try {
+				applyRegistration(config as ConfigLike, buildRegistration(), (m) => void log(m, "warn"))
+			} catch (err) {
+				await log(`registration failed: ${String(err)}`, "warn") // fail-open: the gatekeeper still arms
+			}
+		},
 		event: async ({ event }) => {
 			try {
 				if (event.type === "session.idle") {
