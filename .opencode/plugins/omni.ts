@@ -234,6 +234,14 @@ function counter(state: RunState): number {
 
 const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 
+/** Where the host-neutral body (`agents/`, `commands/`, `skills/`) lives.
+ *  OMNI_PLUGIN_ROOT overrides it the way OMNI_REGISTRY overrides the registry
+ *  path: the fail-open wrapper around registration is only testable if the
+ *  root can be made unreadable. */
+function pluginRoot(): string {
+	return process.env.OMNI_PLUGIN_ROOT || PLUGIN_ROOT
+}
+
 type AgentConfigLike = {
 	description?: string
 	prompt: string
@@ -267,9 +275,29 @@ const ROLES: Record<string, { agent: string; mode: "primary" | "subagent"; tools
 			external_directory: { "*": "ask", "~/.omni-pipeline/*": "allow", "~/.omni-pipeline/**": "allow" },
 		},
 	},
-	planner: { agent: "omni-planner", mode: "subagent", tools: { read: true, grep: true, glob: true, list: true, bash: true, write: true } },
-	implementer: { agent: "omni-implementer", mode: "subagent", tools: { read: true, grep: true, glob: true, list: true, bash: true, write: true } },
-	reviewer: { agent: "omni-reviewer", mode: "subagent", temperature: 0.1, tools: { read: true, grep: true, glob: true, list: true, bash: true } },
+	// `tools` is a per-tool override on a default-enabled set, so the `false`
+	// entries are what actually restrict a role — an allow-only map restricts
+	// nothing. Keep the denials: the planner and the reviewer must not spawn
+	// subagents or reach the network, and the reviewer must not write at all.
+	planner: {
+		agent: "omni-planner",
+		mode: "subagent",
+		tools: { read: true, grep: true, glob: true, list: true, bash: true, write: true, edit: false, task: false, webfetch: false },
+	},
+	implementer: {
+		agent: "omni-implementer",
+		mode: "subagent",
+		tools: { read: true, grep: true, glob: true, list: true, bash: true, write: true, edit: true, task: false, webfetch: false },
+		// The implementer is the only role that changes the tree, and the run is
+		// zero-touch: a permission prompt mid-TDD would stall it.
+		permission: { bash: "allow", edit: "allow", write: "allow" },
+	},
+	reviewer: {
+		agent: "omni-reviewer",
+		mode: "subagent",
+		temperature: 0.1,
+		tools: { read: true, grep: true, glob: true, list: true, bash: true, write: false, edit: false, task: false, webfetch: false },
+	},
 }
 
 function splitFrontmatter(text: string): { meta: Record<string, string>; body: string } {
@@ -283,7 +311,7 @@ function splitFrontmatter(text: string): { meta: Record<string, string>; body: s
 	return { meta, body: m[2].trim() }
 }
 
-export function buildRegistration(root: string = PLUGIN_ROOT) {
+export function buildRegistration(root: string = pluginRoot()) {
 	const agents: Record<string, AgentConfigLike> = {}
 	for (const [role, cfg] of Object.entries(ROLES)) {
 		const { meta, body } = splitFrontmatter(readFileSync(path.join(root, "agents", `${role}.md`), "utf8"))

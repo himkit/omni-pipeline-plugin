@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { resolve } from "node:path"
-import { applyRegistration, buildRegistration } from "../.opencode/plugins/omni.ts"
+import { applyRegistration, buildRegistration, OmniPlugin } from "../.opencode/plugins/omni.ts"
 
 const ROOT = resolve(import.meta.dir, "..")
 
@@ -13,10 +13,44 @@ test("buildRegistration reads the four agents and gives them opencode roles", ()
 	expect(reg.agents["omni"].prompt).toContain("You are the omni pipeline orchestrator.")
 	expect(reg.agents["omni"].prompt).not.toContain("name: orchestrator")
 	expect(reg.agents["omni-planner"].mode).toBe("subagent")
-	expect(reg.agents["omni-planner"].tools).toEqual({ read: true, grep: true, glob: true, list: true, bash: true, write: true })
-	expect(reg.agents["omni-reviewer"].tools).toEqual({ read: true, grep: true, glob: true, list: true, bash: true })
 	expect(reg.agents["omni-reviewer"].temperature).toBe(0.1)
 	expect(reg.agents["omni-planner"].description).toContain("omni pipeline planner")
+})
+
+// opencode's `tools` map is a per-tool override on a default-enabled set, so an
+// allow-only map restricts nothing. The denials are the whole point.
+test("each role's tools map denies what that role must not do", () => {
+	const reg = buildRegistration(ROOT)
+	const planner = reg.agents["omni-planner"].tools!
+	expect(planner.edit).toBe(false)
+	expect(planner.task).toBe(false)
+	expect(planner.webfetch).toBe(false)
+	expect(planner.read).toBe(true)
+	expect(planner.bash).toBe(true)
+	expect(planner.write).toBe(true)
+
+	const reviewer = reg.agents["omni-reviewer"].tools!
+	expect(reviewer.write).toBe(false)
+	expect(reviewer.edit).toBe(false)
+	expect(reviewer.task).toBe(false)
+	expect(reviewer.webfetch).toBe(false)
+	expect(reviewer.read).toBe(true)
+	expect(reviewer.bash).toBe(true)
+
+	const implementer = reg.agents["omni-implementer"].tools!
+	expect(implementer.task).toBe(false)
+	expect(implementer.webfetch).toBe(false)
+	expect(implementer.read).toBe(true)
+	expect(implementer.bash).toBe(true)
+	expect(implementer.write).toBe(true)
+	expect(implementer.edit).toBe(true)
+})
+
+test("the implementer carries its permission block; the planner and reviewer have none", () => {
+	const reg = buildRegistration(ROOT)
+	expect(reg.agents["omni-implementer"].permission).toEqual({ bash: "allow", edit: "allow", write: "allow" })
+	expect(reg.agents["omni-planner"].permission).toBeUndefined()
+	expect(reg.agents["omni-reviewer"].permission).toBeUndefined()
 })
 
 test("buildRegistration turns commands/*.md into command templates bound to the omni agent", () => {
@@ -52,4 +86,28 @@ test("applyRegistration leaves a user's own entries alone and warns", () => {
 	expect(config.skills.paths).toEqual([resolve(ROOT, "skills")])
 	expect(warnings.length).toBe(2)
 	expect(warnings[0]).toContain("omni-planner")
+})
+
+// The gatekeeper is the reason this plugin exists; registration is a bonus. A
+// broken checkout must cost the config, never the enforcement.
+test("a failed registration is caught, logged, and leaves the config untouched", async () => {
+	expect(() => buildRegistration("/nonexistent")).toThrow()
+
+	const messages: string[] = []
+	const client = {
+		app: { log: async ({ body }: any) => void messages.push(String(body?.message)) },
+		session: { get: async () => ({ data: {} }), prompt: async () => ({}) },
+	}
+	const previous = process.env.OMNI_PLUGIN_ROOT
+	process.env.OMNI_PLUGIN_ROOT = "/nonexistent"
+	try {
+		const hooks = await (OmniPlugin as any)({ client, directory: ROOT })
+		const config: Record<string, any> = {}
+		await hooks.config(config)
+		expect(config).toEqual({})
+		expect(messages.some((m) => m.includes("registration failed"))).toBe(true)
+	} finally {
+		if (previous === undefined) delete process.env.OMNI_PLUGIN_ROOT
+		else process.env.OMNI_PLUGIN_ROOT = previous
+	}
 })
