@@ -11,7 +11,7 @@
       "/plugin marketplace add himkit/omni-pipeline-plugin",
       "/plugin install omni@omni-pipeline-plugin"
     ],
-    "verified": "2026-09-09"
+    "verified": null
   },
   "codex": {
     "label": "Codex",
@@ -38,6 +38,6 @@
     "install": [
       "add \"omni-pipeline@git+https://github.com/himkit/omni-pipeline-plugin.git\" to the \"plugin\" array in opencode.json"
     ],
-    "verified": "2026-09-09"
+    "verified": null
   }
 }

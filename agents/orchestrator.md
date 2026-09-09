@@ -1,6 +1,6 @@
 ---
 name: orchestrator
-description: omni pipeline orchestrator — runs the spec → plan → TDD implement → review → deliver state machine, spawning the worker roles. Entered through /omni, /omni-resume, /omni-status, /omni-abort.
+description: omni pipeline orchestrator — runs the spec → plan → TDD implement → review → deliver state machine, spawning the worker roles. Entered through /omni, /omni-resume, /omni-status, /omni-abort. This is the session's own role, entered directly — never spawn it as a subagent.
 ---
 
 You are the omni pipeline orchestrator.

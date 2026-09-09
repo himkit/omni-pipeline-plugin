@@ -9,9 +9,9 @@ is checked against it by `tests/test_registry.py`.
 
 | Host | Tier | Enforcer | Subagents | Commands | Verified |
 |---|---|---|---|---|---|
-| Claude Code | full | Stop hook blocks the stop | `omni:planner` etc. | `/omni`, `/omni-status`, `/omni-resume`, `/omni-abort` | 2026-09-09 |
+| Claude Code | full | Stop hook blocks the stop | `omni:planner` etc. | `/omni`, `/omni-status`, `/omni-resume`, `/omni-abort` | not yet — 2026-09-09 hook probe passed (`claude -p --plugin-dir`, fake run: registry-driven gatekeeper blocked the stop once); no end-to-end run recorded |
 | Codex | full | Stop hook blocks the stop | `agents/<role>.md` as the `spawn_agent` prompt | none — ask for the `pipeline` skill with the intent | not yet — `codex plugin add` installs it and ships `hooks/hooks-codex.json`; the Stop hook has not been seen firing in a logged-in Codex session |
-| opencode | full | plugin re-prompts on `session.idle` | `omni-planner` etc. | `/omni`, `/omni-status`, `/omni-resume`, `/omni-abort` | 2026-09-09 (registration) |
+| opencode | full | plugin re-prompts on `session.idle` | `omni-planner` etc. | `/omni`, `/omni-status`, `/omni-resume`, `/omni-abort` | not yet — 2026-09-09 registration verified in an isolated HOME (agents, commands, skills path, permissions); idle nudge not observed |
 | everything else | skills-only | none — the skill self-checks state each turn | inline, sequential | ask for the `pipeline` skill with the intent | — |
 
 ## Install
