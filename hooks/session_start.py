@@ -10,15 +10,18 @@ FAIL-OPEN like the gatekeeper: any error means no notice, never an error.
 import json
 import os
 import sys
-from omni_hosts import current_host, known_hosts  # noqa: E402
+from omni_hosts import current_host, host_prefix, known_hosts  # noqa: E402
 
 RUNNING_PHASES = {"planning", "implementing", "reviewing", "delivering"}
 OMNI_HOME = os.environ.get("OMNI_HOME") or os.path.expanduser("~/.omni-pipeline")
 RUNS_DIR = os.path.join(OMNI_HOME, "runs")
 # See hooks/gatekeeper.py: OMNI_HOST names the host running this hook, so a
 # run's owner is attributed to the right one. Unset means Claude Code.
-KNOWN_HOSTS = known_hosts()
 HOST = current_host()
+HOST_PREFIX = host_prefix(HOST)
+# (host, prefix) in registry order. The prefix is the registry's to declare;
+# `<id>-` is only the fallback, so the lookup cannot assume one from the other.
+HOST_PREFIXES = tuple((h, host_prefix(h)) for h in known_hosts())
 
 
 def inside(cwd, base):
@@ -56,8 +59,8 @@ def owner_host(bound):
     known prefix predates prefixing and belongs to whoever is reading it."""
     if not bound:
         return None
-    for host in KNOWN_HOSTS:
-        if bound.startswith(host + "-"):
+    for host, prefix in HOST_PREFIXES:
+        if bound.startswith(prefix):
             return host
     return HOST
 
@@ -84,7 +87,7 @@ def main():
         if not any(inside(cwd, b) for b in run_dirs(state)):
             continue
         bound = state.get("session_id")
-        if sid and bound in (sid, "%s-%s" % (HOST, sid)):
+        if sid and bound in (sid, HOST_PREFIX + sid):
             continue  # this very session already owns it
         host = owner_host(bound)
         lines.append("  - %s: phase=%s, task %s/%s, %s"

@@ -34,6 +34,35 @@ def known_hosts():
     return hosts or FALLBACK_HOSTS
 
 
+def _prefix(registry, host):
+    """The `prefix` the registry declares for `host`, or None."""
+    entry = registry.get(host)
+    if isinstance(entry, dict):
+        prefix = entry.get("prefix")
+        if isinstance(prefix, str) and prefix:
+            return prefix
+    return None
+
+
+def host_prefix(host):
+    """The session-id prefix `host` writes: its registry `prefix`, else
+    `<host>-` — the shape every host used before the field existed."""
+    return _prefix(load_registry(), host) or host + "-"
+
+
+def known_prefixes():
+    """Every host's prefix, in registry order, deduplicated. A prefix missing
+    here would let one host adopt another host's run, so this must cover the
+    same set as known_hosts()."""
+    registry = load_registry()
+    out = []
+    for host in known_hosts():
+        prefix = _prefix(registry, host) or host + "-"
+        if prefix not in out:
+            out.append(prefix)
+    return tuple(out)
+
+
 def current_host():
     host = (os.environ.get("OMNI_HOST") or "").strip().lower()
     return host if host in known_hosts() else DEFAULT_HOST

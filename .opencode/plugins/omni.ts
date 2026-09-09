@@ -39,37 +39,73 @@ const RUNNING_PHASES = new Set(["planning", "implementing", "reviewing", "delive
 const MAX_CONSECUTIVE_BLOCKS = 15
 const OMNI_HOME = process.env.OMNI_HOME || path.join(os.homedir(), ".omni-pipeline")
 const RUNS_DIR = path.join(OMNI_HOME, "runs")
-// This plugin only ever runs inside opencode, so HOST_PREFIX is fixed. The
-// known set is not: Claude Code, Codex (via its plugin hook manifest) and
-// opencode all share the runs dir, and an id whose prefix is missing here
-// would be attributed to whoever read it — letting one host take over
-// another's run.
+// This plugin only ever runs inside opencode, so which host it is is fixed;
+// the prefix that host writes is not — hosts/registry.json declares it. The
+// known set is not fixed either: Claude Code, Codex (via its plugin hook
+// manifest) and opencode all share the runs dir, and an id whose prefix is
+// missing here would be attributed to whoever read it — letting one host take
+// over another's run.
 const FALLBACK_HOSTS = ["claude", "codex", "opencode"]
 const REGISTRY_PATH = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
 	"../../hosts/registry.json",
 )
 
-/** Host ids from hosts/registry.json; the builtin three if it is unreadable.
+/** Hosts and their session-id prefixes from hosts/registry.json; the builtin
+ *  three with `<id>-` prefixes if it is unreadable. OMNI_REGISTRY overrides the
+ *  path, as it does on the Python side.
+ *
+ *  The prefix is the registry's to declare — a host whose product name differs
+ *  from its registry key says so there — and `<id>-` is only the fallback.
+ *
  *  FAIL-OPEN like everything else here: a broken registry must not disarm the
  *  gatekeeper, and it must not let one host adopt another's run either — the
  *  fallback is exactly the set that was hard-coded before the registry. */
-export function loadKnownHosts(registryPath: string = REGISTRY_PATH): string[] {
+export function loadRegistry(registryPath?: string): {
+	hosts: string[]
+	prefixes: string[]
+	prefixOf: (host: string) => string
+} {
+	let hosts: string[] = []
+	let declared: Record<string, string> = {}
 	try {
-		const parsed = JSON.parse(readFileSync(registryPath, "utf8")) as unknown
+		const file = registryPath || process.env.OMNI_REGISTRY || REGISTRY_PATH
+		const parsed = JSON.parse(readFileSync(file, "utf8")) as unknown
 		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-			const ids = Object.keys(parsed as Record<string, unknown>).filter(Boolean)
-			if (ids.length) return ids
+			for (const [id, entry] of Object.entries(parsed as Record<string, unknown>)) {
+				if (!id) continue
+				hosts.push(id)
+				const prefix = (entry as { prefix?: unknown } | null)?.prefix
+				if (typeof prefix === "string" && prefix) declared[id] = prefix
+			}
 		}
 	} catch {
 		// fall through
 	}
-	return [...FALLBACK_HOSTS]
+	if (!hosts.length) {
+		hosts = [...FALLBACK_HOSTS]
+		declared = {}
+	}
+	const prefixOf = (host: string): string => declared[host] || `${host}-`
+	const prefixes: string[] = []
+	for (const host of hosts) {
+		const prefix = prefixOf(host)
+		if (!prefixes.includes(prefix)) prefixes.push(prefix)
+	}
+	return { hosts, prefixes, prefixOf }
 }
 
-const KNOWN_HOSTS = loadKnownHosts()
-const HOST_PREFIX = "opencode-"
-const KNOWN_PREFIXES = KNOWN_HOSTS.map((h) => `${h}-`)
+/** Host ids only — the shape the gatekeeper's callers used before prefixes
+ *  came out of the registry. */
+export function loadKnownHosts(registryPath?: string): string[] {
+	return loadRegistry(registryPath).hosts
+}
+
+const REGISTRY = loadRegistry()
+// This plugin only ever runs inside opencode, so its own prefix is the one the
+// registry declares for that host (`opencode-` when the registry is unreadable).
+const HOST_PREFIX = REGISTRY.prefixOf("opencode")
+const KNOWN_PREFIXES = REGISTRY.prefixes
 const TAKEOVER_TTL_SEC = 300
 
 type RunTarget = {

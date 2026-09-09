@@ -2,6 +2,7 @@ import { expect, test } from "bun:test"
 import {
 	grantClaim,
 	loadKnownHosts,
+	loadRegistry,
 	ownerPrefix,
 	qualify,
 	runDirs,
@@ -146,4 +147,25 @@ test("a registry host's id is attributed to that host, not to opencode", async (
 	const reg = join(dir, "registry.json")
 	writeFileSync(reg, JSON.stringify({ claude: {}, opencode: {}, cursor: {} }))
 	expect(loadKnownHosts(reg)).toEqual(["claude", "opencode", "cursor"])
+})
+
+test("loadRegistry reads each host's prefix, not just its id", async () => {
+	const { writeFileSync, mkdtempSync } = await import("node:fs")
+	const { join } = await import("node:path")
+	const { tmpdir } = await import("node:os")
+	const dir = mkdtempSync(join(tmpdir(), "omni-reg-"))
+	const reg = join(dir, "registry.json")
+	writeFileSync(reg, JSON.stringify({ claude: { prefix: "claude-" }, droid: { prefix: "factory-" } }))
+	const loaded = loadRegistry(reg)
+	expect(loaded.prefixOf("droid")).toBe("factory-")
+	expect(loaded.prefixes).toContain("factory-")
+	expect(loaded.hosts).toEqual(["claude", "droid"])
+	// a host with no `prefix` field, and an unknown host, both fall back to `<id>-`
+	expect(loaded.prefixOf("cursor")).toBe("cursor-")
+})
+
+test("loadRegistry falls back to the builtin three with `id-` prefixes", () => {
+	const loaded = loadRegistry("/nonexistent/registry.json")
+	expect(loaded.hosts).toEqual(["claude", "codex", "opencode"])
+	expect(loaded.prefixes).toEqual(["claude-", "codex-", "opencode-"])
 })

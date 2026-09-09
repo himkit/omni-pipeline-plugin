@@ -29,7 +29,7 @@ import json
 import os
 import sys
 import time
-from omni_hosts import current_host, known_hosts  # noqa: E402
+from omni_hosts import current_host, host_prefix, known_prefixes  # noqa: E402
 
 RUNNING_PHASES = {"planning", "implementing", "reviewing", "delivering"}
 MAX_CONSECUTIVE_BLOCKS = 15
@@ -41,10 +41,11 @@ RUNS_DIR = os.path.join(OMNI_HOME, "runs")
 # OMNI_HOST says which one is running this file, so two hosts sharing RUNS_DIR
 # can never be mistaken for each other. Unset or unrecognised means Claude
 # Code, the host that has always run this file.
-KNOWN_HOSTS = known_hosts()
 HOST = current_host()
-HOST_PREFIX = HOST + "-"
-KNOWN_PREFIXES = tuple(h + "-" for h in KNOWN_HOSTS)
+# The prefix is the registry's to declare (a host whose product name differs
+# from its registry key says so there); `<id>-` is only the fallback.
+HOST_PREFIX = host_prefix(HOST)
+KNOWN_PREFIXES = known_prefixes()
 
 
 def write_state(path, state):

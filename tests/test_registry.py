@@ -40,6 +40,14 @@ class RegistryShapeTest(unittest.TestCase):
                             "%s adapter %s missing" % (host, entry["adapter"]))
             self.assertTrue(entry["install"], "%s has no install steps" % host)
 
+    def test_prefix_matches_id_or_is_documented(self):
+        """Every shipped host's prefix is just its id plus a dash. The field
+        exists so a host whose product name differs from its registry key can
+        say so; nothing ships that way yet, and the loaders' fallback is
+        `<id>-`, so a divergence here would be silent."""
+        for host, entry in registry().items():
+            self.assertEqual(entry["prefix"], host + "-", host)
+
     def test_tier_is_full_or_skills_only(self):
         for entry in registry().values():
             self.assertIn(entry["tier"], ("full", "skills-only"))
@@ -49,10 +57,20 @@ class LoaderTest(unittest.TestCase):
     def test_known_hosts_come_from_the_registry(self):
         self.assertEqual(omni_hosts.known_hosts(), tuple(registry().keys()))
 
+    def test_prefixes_come_from_the_registry(self):
+        reg = registry()
+        self.assertEqual(omni_hosts.known_prefixes(),
+                         tuple(e["prefix"] for e in reg.values()))
+        for host, entry in reg.items():
+            self.assertEqual(omni_hosts.host_prefix(host), entry["prefix"])
+
     def test_missing_registry_falls_back_to_the_builtin_three(self):
         os.environ["OMNI_REGISTRY"] = "/nonexistent/registry.json"
         try:
             self.assertEqual(omni_hosts.known_hosts(), ("claude", "codex", "opencode"))
+            self.assertEqual(omni_hosts.known_prefixes(),
+                             ("claude-", "codex-", "opencode-"))
+            self.assertEqual(omni_hosts.host_prefix("codex"), "codex-")
         finally:
             del os.environ["OMNI_REGISTRY"]
 
