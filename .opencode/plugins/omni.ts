@@ -1,5 +1,5 @@
 /**
- * omni-gatekeeper — opencode port of the omni Stop-hook gatekeeper.
+ * omni — opencode plugin: registers the pipeline and enforces it on idle.
  *
  * Claude Code blocks a session from stopping. opencode has no equivalent, so
  * this plugin listens for `session.idle` and re-prompts the session instead:
@@ -29,8 +29,10 @@
  */
 
 import * as fs from "node:fs/promises"
+import { readFileSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
+import { fileURLToPath } from "node:url"
 import type { Plugin } from "@opencode-ai/plugin"
 
 const RUNNING_PHASES = new Set(["planning", "implementing", "reviewing", "delivering"])
@@ -38,10 +40,34 @@ const MAX_CONSECUTIVE_BLOCKS = 15
 const OMNI_HOME = process.env.OMNI_HOME || path.join(os.homedir(), ".omni-pipeline")
 const RUNS_DIR = path.join(OMNI_HOME, "runs")
 // This plugin only ever runs inside opencode, so HOST_PREFIX is fixed. The
-// known set is not: Claude Code, codex (via ~/.codex/hooks.json) and opencode
-// all share the runs dir, and an id whose prefix is missing here would be
-// attributed to whoever read it — letting one host take over another's run.
-const KNOWN_HOSTS = ["claude", "codex", "opencode"] as const
+// known set is not: Claude Code, Codex (via its plugin hook manifest) and
+// opencode all share the runs dir, and an id whose prefix is missing here
+// would be attributed to whoever read it — letting one host take over
+// another's run.
+const FALLBACK_HOSTS = ["claude", "codex", "opencode"]
+const REGISTRY_PATH = path.resolve(
+	path.dirname(fileURLToPath(import.meta.url)),
+	"../../hosts/registry.json",
+)
+
+/** Host ids from hosts/registry.json; the builtin three if it is unreadable.
+ *  FAIL-OPEN like everything else here: a broken registry must not disarm the
+ *  gatekeeper, and it must not let one host adopt another's run either — the
+ *  fallback is exactly the set that was hard-coded before the registry. */
+export function loadKnownHosts(registryPath: string = REGISTRY_PATH): string[] {
+	try {
+		const parsed = JSON.parse(readFileSync(registryPath, "utf8")) as unknown
+		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+			const ids = Object.keys(parsed as Record<string, unknown>).filter(Boolean)
+			if (ids.length) return ids
+		}
+	} catch {
+		// fall through
+	}
+	return [...FALLBACK_HOSTS]
+}
+
+const KNOWN_HOSTS = loadKnownHosts()
 const HOST_PREFIX = "opencode-"
 const KNOWN_PREFIXES = KNOWN_HOSTS.map((h) => `${h}-`)
 const TAKEOVER_TTL_SEC = 300
@@ -206,7 +232,7 @@ function counter(state: RunState): number {
 	return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
 }
 
-export const OmniGatekeeper: Plugin = async ({ client, directory }) => {
+export const OmniPlugin: Plugin = async ({ client, directory }) => {
 	/** Sessions currently inside handleIdle — guards against re-entry only.
 	 *  Deliberately NOT a "nudge outstanding" flag: opencode emits session.idle
 	 *  for a nudge's own turn BEFORE the prompt call resolves, so keying off the

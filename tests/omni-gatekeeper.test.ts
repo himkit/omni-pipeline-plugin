@@ -1,12 +1,13 @@
 import { expect, test } from "bun:test"
 import {
 	grantClaim,
+	loadKnownHosts,
 	ownerPrefix,
 	qualify,
 	runDirs,
 	sameOwner,
 	takeoverClaim,
-} from "../.opencode-plugin/plugins/omni-gatekeeper.ts"
+} from "../.opencode/plugins/omni.ts"
 
 test("qualify namespaces a bare id and leaves a qualified one alone", () => {
 	expect(qualify("s1")).toBe("opencode-s1")
@@ -127,4 +128,22 @@ test("takeoverClaim without a cwd flag matches any target directory", () => {
 	expect(takeoverClaim(state, "/wt/web/src", now)).toBe(true)
 	expect(takeoverClaim(state, "/web", now)).toBe(true)
 	expect(takeoverClaim(state, "/elsewhere", now)).toBe(false)
+})
+
+test("loadKnownHosts reads hosts/registry.json and falls back to the builtin three", async () => {
+	const fromRepo = loadKnownHosts()
+	expect(fromRepo).toContain("claude")
+	expect(fromRepo).toContain("codex")
+	expect(fromRepo).toContain("opencode")
+	expect(loadKnownHosts("/nonexistent/registry.json")).toEqual(["claude", "codex", "opencode"])
+})
+
+test("a registry host's id is attributed to that host, not to opencode", async () => {
+	const { writeFileSync, mkdtempSync } = await import("node:fs")
+	const { join } = await import("node:path")
+	const { tmpdir } = await import("node:os")
+	const dir = mkdtempSync(join(tmpdir(), "omni-reg-"))
+	const reg = join(dir, "registry.json")
+	writeFileSync(reg, JSON.stringify({ claude: {}, opencode: {}, cursor: {} }))
+	expect(loadKnownHosts(reg)).toEqual(["claude", "opencode", "cursor"])
 })
