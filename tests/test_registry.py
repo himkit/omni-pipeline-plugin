@@ -71,3 +71,21 @@ class LoaderTest(unittest.TestCase):
             self.assertEqual(omni_hosts.current_host(), "claude")
         finally:
             del os.environ["OMNI_HOST"]
+
+
+class DocsAndVersionTest(unittest.TestCase):
+    def test_hosts_readme_has_one_row_per_host(self):
+        with open(os.path.join(ROOT, "hosts", "README.md")) as f:
+            text = f.read()
+        for host, entry in registry().items():
+            row = "| %s |" % entry["label"]
+            self.assertIn(row, text, "hosts/README.md lacks a row for %s" % host)
+            self.assertIn("| %s |" % entry["tier"], text)
+
+    def test_versions_agree(self):
+        def version(rel):
+            with open(os.path.join(ROOT, rel)) as f:
+                return json.load(f)["version"]
+        versions = {rel: version(rel) for rel in (
+            "package.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json")}
+        self.assertEqual(len(set(versions.values())), 1, versions)

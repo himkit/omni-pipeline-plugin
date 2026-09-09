@@ -1,5 +1,43 @@
 # Changelog
 
+## 1.0.0
+
+Every host now installs omni through its own plugin mechanism, and the `npx`
+installer is gone. Claude Code and Codex install from the GitHub marketplace;
+opencode installs the repository as a plugin from `opencode.json`; every other
+coding agent gets the skill through `npx skills add`. Nothing writes into
+`~/.codex`, `~/.config/opencode` or `~/.claude` any more.
+
+New: `hosts/registry.json` declares each host's prefix, tier and capabilities
+and drives `KNOWN_HOSTS` in both gatekeepers; `.codex-plugin/plugin.json` plus
+`hooks/hooks-codex.json` replace the entry the installer used to write into
+`~/.codex/hooks.json`; `.opencode/plugins/omni.ts` registers the agents,
+commands and skill from the plugin's own files. `agents/orchestrator.md` is the
+single orchestrator prompt. The prompts no longer name hosts; a test keeps it so.
+
+Removed: `install.mjs`, `~/.omni-pipeline/src`, `.opencode-plugin/`. Run state
+in `~/.omni-pipeline/runs/` and worktrees are untouched; a run in flight before
+the upgrade resumes with `/omni-resume` afterwards.
+
+If you installed a previous version with `npx github:himkit/omni-pipeline-plugin`,
+clean up once by hand — the installer's `--uninstall` went with it:
+
+```bash
+# opencode: drop the symlinks the old installer made
+rm -f ~/.config/opencode/agents/omni*.md ~/.config/opencode/commands/omni*.md \
+      ~/.config/opencode/plugins/omni-gatekeeper.ts
+rm -rf ~/.config/opencode/skills/pipeline
+# codex: restore hooks.json from the installer's backup (or delete the entry
+# whose "_source" is "omni-pipeline")
+mv ~/.codex/hooks.json.omni-backup ~/.codex/hooks.json
+# claude + codex: re-point the marketplace at GitHub instead of the old checkout
+claude plugin marketplace remove omni-pipeline-plugin
+codex plugin marketplace remove omni-pipeline-plugin
+rm -rf ~/.omni-pipeline/src
+```
+
+Then install per host as the README says.
+
 ## 0.5.0
 
 One run can now span several repositories. `state.json` carries a `targets`

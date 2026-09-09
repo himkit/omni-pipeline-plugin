@@ -49,12 +49,13 @@ python3 -m pytest tests -q
 bun test
 ```
 
-`bun test` picks up every `tests/*.test.ts` — the opencode gatekeeper helpers
-and the installer's pure functions.
+`bun test` picks up every `tests/*.test.ts` — the opencode plugin's gatekeeper
+helpers and its `config`-hook registration.
 
-The Python hooks (`hooks/gatekeeper.py`, `hooks/session_start.py`) and the
-opencode plugin (`.opencode-plugin/plugins/omni-gatekeeper.ts`) are two ports of
-the same gatekeeper logic. A change to the ownership, prefix,
-directory-matching, or safety-valve rules in one has to land in the other, and
-both list every host in `KNOWN_HOSTS` — an omission there lets one host take
-over another host's run.
+Hosts live in `hosts/registry.json`; both gatekeepers (`hooks/gatekeeper.py`
+and `.opencode/plugins/omni.ts`) read `KNOWN_HOSTS` from it, so adding a host
+is a registry edit plus an adapter directory — see `docs/porting-a-host.md`.
+The ownership, prefix, directory-matching and safety-valve rules are still two
+ports of one design; a change in one lands in the other. Prompts in `skills/`,
+`agents/` and `commands/` never name a host — `tests/test_prompt_neutrality.py`
+enforces it.
