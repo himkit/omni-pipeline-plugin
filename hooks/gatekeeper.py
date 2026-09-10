@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""omni gatekeeper — Stop-hook enforcer for the autonomous pipeline.
+"""omnislash gatekeeper — Stop-hook enforcer for the autonomous pipeline.
 
 Fires at the end of every assistant turn. If the current session owns a run
 whose phase is mid-pipeline (planning/implementing/reviewing/delivering), the
@@ -10,7 +10,7 @@ Design rules:
   A broken gatekeeper must never trap a session.
 - Ownership handshake: the gatekeeper never adopts a session on its own.
   For an unbound run (session_id null) whose repo/workdir, any target's
-  repo/workdir, or resume_cwd (written by /omni-resume) contains this
+  repo/workdir, or resume_cwd (written by /omnislash:reconnect) contains this
   session's cwd, it blocks ONCE with an offer naming this session's id; the
   orchestrator binds by writing that id into state.json itself. A session
   that ignores the offer is never blocked by that run again (tracked in
@@ -23,7 +23,7 @@ Design rules:
   advance, so a model that rewrites state on an idle turn cannot disarm the
   valve. MAX_CONSECUTIVE_BLOCKS blocks without real progress force-mark the
   run blocked and let the session stop. `stop_blocks` is a display mirror for
-  /omni-status: written here, never trusted here.
+  /omnislash:scoreboard: written here, never trusted here.
 """
 import json
 import os
@@ -116,7 +116,7 @@ def same_owner(bound, sid):
 
 
 def takeover_claim(state, cwd, now):
-    """True if a fresh, directory-matched /omni-resume request should hand this
+    """True if a fresh, directory-matched /omnislash:reconnect request should hand this
     session the run.
 
     Never a liveness guess: nothing here asks whether the old owner is alive,
@@ -195,7 +195,7 @@ def main():
     # Pass 1 — grant handovers on EVERY run before deciding anything. The
     # decision pass returns on the first run it acts on, so a claim on a run
     # further down the list would otherwise be starved by an unrelated one. A
-    # `blocked` run is claimable too: that is the commonest thing /omni-resume
+    # `blocked` run is claimable too: that is the commonest thing /omnislash:reconnect
     # is pointed at, and ownership has to move before the phase can be restored.
     enforceable = []
     for slug in sorted(os.listdir(RUNS_DIR)):
@@ -228,7 +228,7 @@ def main():
             state["revoked_notified"] = told + [me]
             write_state(state_path, state)
             print(json.dumps({"decision": "block", "reason": (
-                "[omni gatekeeper] Run '%s' now belongs to session %s. You no "
+                "[omnislash gatekeeper] Run '%s' now belongs to session %s. You no "
                 "longer own it: spawn nothing, write nothing under %s. Tell the "
                 "user it moved, then stop — you will not be blocked again."
                 % (slug, state.get("session_id"),
@@ -247,7 +247,7 @@ def main():
             state["adopt_offers"] = offers
             write_state(state_path, state)
             print(json.dumps({"decision": "block", "reason": (
-                "[omni gatekeeper] Unbound run '%s' (phase=%s) is in this "
+                "[omnislash gatekeeper] Unbound run '%s' (phase=%s) is in this "
                 "session's directory. If you are its orchestrator, claim it: add "
                 "\"takeover_requested\" (`date +%%s`) and \"takeover_cwd\" (`pwd`) "
                 "to %s, then stop — this hook writes the session id itself and "
@@ -270,7 +270,7 @@ def main():
         blocks = 1 if state.get("gk_fingerprint") != fp else counter(state) + 1
         state["gk_fingerprint"] = fp
         state["gk_blocks"] = blocks
-        state["stop_blocks"] = blocks  # display mirror for /omni-status
+        state["stop_blocks"] = blocks  # display mirror for /omnislash:scoreboard
 
         if blocks > MAX_CONSECUTIVE_BLOCKS:
             state["phase"] = "blocked"
@@ -281,16 +281,16 @@ def main():
             )
             write_state(state_path, state)
             print(json.dumps({
-                "systemMessage": "[omni] run '%s' auto-blocked by safety valve. "
-                                 "Inspect %s and resume with /omni-resume." % (slug, state_path)
+                "systemMessage": "[omnislash] run '%s' auto-blocked by safety valve. "
+                                 "Inspect %s and resume with /omnislash:reconnect." % (slug, state_path)
             }))
             return
 
         write_state(state_path, state)
         reason = (
-            "[omni gatekeeper] Run '%s' is mid-pipeline: phase=%s, "
+            "[omnislash gatekeeper] Run '%s' is mid-pipeline: phase=%s, "
             "task %s/%s, review iter %s. Next action: %s. "
-            "Do NOT stop — continue the pipeline now, following the omni:pipeline skill. "
+            "Do NOT stop — continue the pipeline now, following the omnislash:cast skill. "
             "If that next action is already in flight (an agent you spawned has not "
             "returned yet), do NOT spawn it again — spawn subagents in the foreground "
             "so the turn ends only after they return. "

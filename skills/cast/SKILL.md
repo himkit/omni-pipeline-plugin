@@ -1,16 +1,17 @@
 ---
-name: pipeline
-description: Autonomous feature pipeline — brainstorm an idea into a locked spec, then run plan → implement (TDD) → review loop → deliver on a feature branch with zero human touch. Use when the user invokes /omni, says "triển", "omnislash", "auto pipeline", "build this feature end to end", or wants a spec-first fully automated feature delivery. Also loaded by /omni-resume to continue an interrupted run.
+name: cast
+description: Autonomous feature pipeline — brainstorm an idea into a locked spec, then run plan → implement (TDD) → review loop → deliver on a feature branch with zero human touch. Use when the user invokes /omnislash:cast, says "triển", "omnislash", "auto pipeline", "build this feature end to end", or wants a spec-first fully automated feature delivery. Also loaded by /omnislash:reconnect to continue an interrupted run.
+argument-hint: <feature idea>
 ---
 
-# omni pipeline
+# omnislash
 
 You are the **orchestrator**. You never write feature code yourself — you run the
 state machine, spawn subagents (creep waves) per phase, verify their output, and
 keep `state.json` truthful. The gatekeeper — when this host has one — blocks
 this session from stopping while a run is mid-pipeline, so the only legitimate
 exits are:
-`done`, `blocked` (with a written reason), or `aborted` (via /omni-abort).
+`done`, `blocked` (with a written reason), or `aborted` (via /omnislash:gg).
 
 **Roles, not agent names.** The pipeline has three worker roles — `planner`,
 `implementer`, `reviewer` — and this session is the `orchestrator`. How a role
@@ -26,16 +27,16 @@ run-config questions. After that, zero questions until `done` or `blocked`.**
 
 ## Entry points
 
-Hosts with slash commands expose these as `/omni`, `/omni-status`,
-`/omni-resume`, `/omni-abort`. A host without them reaches the same entry by
+Hosts with slash commands expose these as `/omnislash:cast`, `/omnislash:scoreboard`,
+`/omnislash:reconnect`, `/omnislash:gg`. A host without them reaches the same entry by
 asking for this skill with the intent named below.
 
 | Entry | Intent |
 |---|---|
-| `omni <idea>` | Start a run: Phase 0 brainstorm with the idea, then hands-off to `done`. |
-| `omni-status [run-id]` | Read-only scoreboard of `~/.omni-pipeline/runs/*/state.json`: phase, task i/n, review iter, branch, targets. |
-| `omni-resume [run-id]` | Resume protocol below: rebuild context, reconcile with git, claim, stop. |
-| `omni-abort [run-id]` | Abort protocol below: set `aborted` first, report, ask once about cleanup. |
+| `cast <idea>` | Start a run: Phase 0 brainstorm with the idea, then hands-off to `done`. |
+| `scoreboard [run-id]` | Read-only scoreboard of `~/.omni-pipeline/runs/*/state.json`: phase, task i/n, review iter, branch, targets. |
+| `reconnect [run-id]` | Resume protocol below: rebuild context, reconcile with git, claim, stop. |
+| `gg [run-id]` | Abort protocol below: set `aborted` first, report, ask once about cleanup. |
 
 ## Run directory (outside the repo)
 
@@ -100,7 +101,7 @@ own `repo`, `workdir`, `isolation` (`worktree` or `in-place`), `branch`,
 `base_branch` and `test_command`. `name` is unique within the run and defaults
 to the repo basename — when two repos share a basename, ask for a distinct
 name in step 5 — and plan tasks and review findings refer to targets by it.
-The first target is the **primary** target — the repo `/omni` was invoked in
+The first target is the **primary** target — the repo `/omnislash:cast` was invoked in
 unless the user named another — and the top-level `repo`, `workdir`, `branch`,
 `base_branch` and `test_command` are always copies of it, so a run with one
 target looks exactly like it always did and the hooks need no migration.
@@ -142,9 +143,9 @@ Phases: `brainstorm → planning → implementing → reviewing → delivering �
 
 **Pick the spawn mechanism by what this session has, in this order:**
 
-1. A named agent for the role exists — `omni:<role>` where the host
-   namespaces plugin agents (for example `omni:planner`), `omni-<role>` where
-   it does not (`omni-planner`). Spawn it.
+1. A named agent for the role exists — `omnislash:<role>` where the host
+   namespaces plugin agents (for example `omnislash:planner`), `omnislash-<role>` where
+   it does not (`omnislash-planner`). Spawn it.
 2. No named agent, but the session can spawn subagents with a custom prompt.
    Read `agents/<role>.md` from this plugin (it sits beside the `skills/`
    directory this skill was loaded from), strip its frontmatter, and use the
@@ -223,7 +224,13 @@ the same way (see its agent file), so its report carries the same shape.
 
 ## Phase 0 — brainstorm (interactive, human in the loop)
 
-Input: the user's feature idea (from `/omni <idea>`).
+Input: the user's feature idea — `$ARGUMENTS` when this skill was invoked as
+`/omnislash:cast <idea>`:
+
+$ARGUMENTS
+
+If that is empty (or the host left the placeholder unexpanded) and the user
+gave no idea in their message, ask for one before doing anything else.
 
 1. Explore the target repo first: structure, conventions, existing flows the
    feature touches, how tests are run. The **current working directory** is the
@@ -278,8 +285,8 @@ Input: the user's feature idea (from `/omni <idea>`).
       targets that were created and the one that failed — resume must never
       assume every target exists.
 7. If 6c blocked the run, tell the user which target failed and stop here.
-   Otherwise announce: "**Omnislash cast — pipeline tự chém đến deliver.** Theo dõi: /omni-status. Hủy:
-   /omni-abort." Then, **if a gatekeeper is enforcing this session, end your
+   Otherwise announce: "**Omnislash cast — pipeline tự chém đến deliver.** Theo dõi: /omnislash:scoreboard. Hủy:
+   /omnislash:gg." Then, **if a gatekeeper is enforcing this session, end your
    turn without spawning anything** — it binds the run to this session at that
    boundary and comes back telling you to start planning. If nothing is
    enforcing (see *If nothing is enforcing*), do not end the turn: the state is
@@ -411,7 +418,7 @@ Set `phase: "blocked"`, write a `blocked_reason` a human can act on, set
 NOT valid reasons to block: a hard bug (debug it), a failing test (fix it),
 an ambiguous nit (pick the spec-consistent reading and note it in report.md).
 
-## Abort protocol (/omni-abort)
+## Abort protocol (/omnislash:gg)
 
 1. Set `phase: "aborted"` in `state.json` first — the gatekeeper disarms and
    nothing can stay trapped.
@@ -425,7 +432,7 @@ an ambiguous nit (pick the spec-consistent reading and note it in report.md).
    worktree or branch does not exist is skipped, not an error — keep going
    and report it. Remove the run dir last.
 
-## Resume protocol (/omni-resume)
+## Resume protocol (/omnislash:reconnect)
 
 1. Locate the run (arg run-id, else the single non-terminal run; if several, ask).
 2. Read `state.json`, `spec.md`, `plan.md` and `notes.md` (if present) to

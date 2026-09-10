@@ -1,6 +1,6 @@
-# Porting omni to a new host
+# Porting omnislash to a new host
 
-One PR per host. The PR carries a real session transcript: `/omni` (or the
+One PR per host. The PR carries a real session transcript: `/omnislash:cast` (or the
 skill by intent) on a scratch repo through `planning`, with the gatekeeper
 visibly feeding `next_action` back at least once.
 
@@ -51,7 +51,7 @@ its flags table. Do **not** add the host's name to `skills/`, `agents/` or
 
 ## 5. Acceptance
 
-Clean session on the new host, scratch repo, `/omni add a --version flag`
+Clean session on the new host, scratch repo, `/omnislash:cast add a --version flag`
 (or the skill by intent). Approve the spec, answer the setup questions, and
 show: `state.json` written with `session_id` prefixed by your `prefix`, the
 gatekeeper's first `next_action` message, the planner spawned or done inline.

@@ -11,7 +11,7 @@ class SessionStartTest(HookCase):
         self.write_run("r1", session_id="claude-dead")
         text = self.notice(session_id="fresh", cwd="/repo")
         self.assertIn("r1", text)
-        self.assertIn("/omni-resume", text)
+        self.assertIn("/omnislash:reconnect", text)
 
     def test_notice_never_writes_state(self):
         self.write_run("r1", session_id="claude-dead")

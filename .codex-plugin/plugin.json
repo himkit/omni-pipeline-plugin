@@ -1,5 +1,5 @@
 {
-  "name": "omni",
+  "name": "omnislash",
   "version": "1.0.0",
   "description": "Autonomous feature pipeline: brainstorm and lock a spec interactively, then plan → implement (TDD) → review loop → deliver on a feature branch with zero human touch, enforced by a Stop-hook state machine.",
   "author": {
@@ -13,10 +13,10 @@
   "skills": "./skills/",
   "hooks": "./hooks/hooks-codex.json",
   "interface": {
-    "displayName": "omni",
+    "displayName": "omnislash",
     "shortDescription": "Spec → plan → TDD implement → review → deliver, hands-off",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Read", "Write"],
-    "defaultPrompt": ["Use the pipeline skill to build this feature end to end:"]
+    "defaultPrompt": ["Use the cast skill to build this feature end to end:"]
   }
 }

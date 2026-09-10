@@ -1,9 +1,9 @@
 ---
-description: Abort a omni run (gg) — disarm the gatekeeper, optionally clean up branches and worktrees
+description: Abort an omnislash run (gg) — disarm the gatekeeper, optionally clean up branches and worktrees
 argument-hint: [run-id]
 ---
 
-Abort the omni run matching `$ARGUMENTS` (no argument: the single non-terminal
+Abort the omnislash run matching `$ARGUMENTS` (no argument: the single non-terminal
 run under `~/.omni-pipeline/runs/`; several candidates: list them and ask which).
 
 1. Set `"phase": "aborted"` in its `state.json` immediately — this disarms the

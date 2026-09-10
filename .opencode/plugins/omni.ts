@@ -11,7 +11,7 @@
  *   A broken gatekeeper must never trap a session.
  * - Ownership handshake: never adopt a session on its own. For an unbound run
  *   (session_id null) whose repo/workdir, any target's repo/workdir, or
- *   resume_cwd (written by /omni-resume) contains this session's directory,
+ *   resume_cwd (written by /omnislash:reconnect) contains this session's directory,
  *   nudge ONCE with an offer naming this session's id; the orchestrator binds
  *   by writing that id into state.json itself. A session that ignores the
  *   offer is never nudged by that run again (tracked in adopt_offers).
@@ -22,10 +22,10 @@
  *   advance, so a model that rewrites state on an idle turn cannot disarm the
  *   valve. MAX_CONSECUTIVE_BLOCKS nudges without real progress force-mark the
  *   run blocked and let the session rest. `stop_blocks` is a display mirror for
- *   /omni-status: written here, never trusted here.
+ *   /omnislash:scoreboard: written here, never trusted here.
  *
  * State lives in ~/.omni-pipeline/runs/, shared with Claude Code, so
- * /omni-status and /omni-resume see the same runs from either host.
+ * /omnislash:scoreboard and /omnislash:reconnect see the same runs from either host.
  */
 
 import * as fs from "node:fs/promises"
@@ -212,7 +212,7 @@ export function sameOwner(bound: string | null | undefined, sid: string): boolea
 	return bound === qualify(sid) || bound === sid
 }
 
-/** True if a fresh, directory-matched /omni-resume request should hand this
+/** True if a fresh, directory-matched /omnislash:reconnect request should hand this
  *  session the run.
  *
  *  Never a liveness guess: nothing here asks whether the old owner is alive,
@@ -296,7 +296,7 @@ type ConfigLike = {
 /** The only opencode-specific facts about each role. Bodies come from agents/. */
 const ROLES: Record<string, { agent: string; mode: "primary" | "subagent"; tools?: Record<string, boolean>; temperature?: number; permission?: Record<string, unknown> }> = {
 	orchestrator: {
-		agent: "omni",
+		agent: "omnislash",
 		mode: "primary",
 		permission: {
 			bash: "allow",
@@ -316,12 +316,12 @@ const ROLES: Record<string, { agent: string; mode: "primary" | "subagent"; tools
 	// nothing. Keep the denials: the planner and the reviewer must not spawn
 	// subagents or reach the network, and the reviewer must not write at all.
 	planner: {
-		agent: "omni-planner",
+		agent: "omnislash-planner",
 		mode: "subagent",
 		tools: { read: true, grep: true, glob: true, list: true, bash: true, write: true, edit: false, task: false, webfetch: false },
 	},
 	implementer: {
-		agent: "omni-implementer",
+		agent: "omnislash-implementer",
 		mode: "subagent",
 		tools: { read: true, grep: true, glob: true, list: true, bash: true, write: true, edit: true, task: false, webfetch: false },
 		// The implementer is the only role that changes the tree, and the run is
@@ -329,12 +329,26 @@ const ROLES: Record<string, { agent: string; mode: "primary" | "subagent"; tools
 		permission: { bash: "allow", edit: "allow", write: "allow" },
 	},
 	reviewer: {
-		agent: "omni-reviewer",
+		agent: "omnislash-reviewer",
 		mode: "subagent",
 		temperature: 0.1,
 		tools: { read: true, grep: true, glob: true, list: true, bash: true, write: false, edit: false, task: false, webfetch: false },
 	},
 }
+
+const CAST_DESCRIPTION =
+	"Start an omnislash run — brainstorm the idea into a locked spec, then autonomous plan → implement (TDD) → review loop → deliver on a feature branch"
+const CAST_TEMPLATE = [
+	"Invoke the `cast` skill and follow it exactly, starting at Phase 0 (brainstorm) with this feature idea:",
+	"",
+	"$ARGUMENTS",
+	"",
+	"If no idea was given, ask for one before doing anything else.",
+	"",
+	"Reminders that override any competing habit:",
+	"- Brainstorm is interactive; everything after spec approval + run-config is zero-touch — do not ask the human anything past that point.",
+	"- The plugin re-prompts this session while the run is mid-pipeline. The only exits are done, blocked (with a written reason), or /gg.",
+].join("\n")
 
 function splitFrontmatter(text: string): { meta: Record<string, string>; body: string } {
 	const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
@@ -360,8 +374,13 @@ export function buildRegistration(root: string = pluginRoot()) {
 	const commands: Record<string, CommandLike> = {}
 	for (const file of readdirSync(path.join(root, "commands")).filter((f) => f.endsWith(".md")).sort()) {
 		const { meta, body } = splitFrontmatter(readFileSync(path.join(root, "commands", file), "utf8"))
-		commands[file.slice(0, -3)] = { template: body, description: meta.description, agent: "omni" }
+		commands[file.slice(0, -3)] = { template: body, description: meta.description, agent: "omnislash" }
 	}
+	// The `cast` skill is the start command itself where the host runs skills from
+	// the slash line, so there is no commands/cast.md (a command and a skill may
+	// not share a name there). opencode reaches skills only through the skill
+	// tool, so it gets a command that hands the idea to the skill.
+	commands.cast = { template: CAST_TEMPLATE, description: CAST_DESCRIPTION, agent: "omnislash" }
 	return { skillsPath: path.join(root, "skills"), agents, commands }
 }
 
@@ -377,7 +396,7 @@ export function applyRegistration(
 	config.agent = config.agent || {}
 	for (const [name, entry] of Object.entries(reg.agents)) {
 		if (name in config.agent) {
-			warn(`agent "${name}" is already defined in your config; omni's definition was skipped`)
+			warn(`agent "${name}" is already defined in your config; omnislash's definition was skipped`)
 			continue
 		}
 		config.agent[name] = entry
@@ -385,7 +404,7 @@ export function applyRegistration(
 	config.command = config.command || {}
 	for (const [name, entry] of Object.entries(reg.commands)) {
 		if (name in config.command) {
-			warn(`command "${name}" is already defined in your config; omni's definition was skipped`)
+			warn(`command "${name}" is already defined in your config; omnislash's definition was skipped`)
 			continue
 		}
 		config.command[name] = entry
@@ -402,7 +421,7 @@ export const OmniPlugin: Plugin = async ({ client, directory }) => {
 
 	const log = async (message: string, level: "debug" | "info" | "warn" = "info") => {
 		try {
-			await client.app.log({ body: { service: "omni", level, message } })
+			await client.app.log({ body: { service: "omnislash", level, message } })
 		} catch {
 			// fail-open
 		}
@@ -443,7 +462,7 @@ export const OmniPlugin: Plugin = async ({ client, directory }) => {
 		// Pass 1 — grant handovers on EVERY run before deciding anything. The
 		// decision pass returns on the first run it acts on, so a claim on a run
 		// further down the list would otherwise be starved by an unrelated one. A
-		// `blocked` run is claimable too: that is the commonest thing /omni-resume
+		// `blocked` run is claimable too: that is the commonest thing /omnislash:reconnect
 		// is pointed at, and ownership has to move before the phase can be restored.
 		const enforceable: Array<{ slug: string; statePath: string; state: RunState }> = []
 		for (const slug of slugs) {
@@ -519,7 +538,7 @@ export const OmniPlugin: Plugin = async ({ client, directory }) => {
 			const blocks = state.gk_fingerprint !== fp ? 1 : counter(state) + 1
 			state.gk_fingerprint = fp
 			state.gk_blocks = blocks
-			state.stop_blocks = blocks // display mirror for /omni-status
+			state.stop_blocks = blocks // display mirror for /omnislash:scoreboard
 
 			if (blocks > MAX_CONSECUTIVE_BLOCKS) {
 				state.phase = "blocked"
@@ -528,7 +547,7 @@ export const OmniPlugin: Plugin = async ({ client, directory }) => {
 					`progress past ${fp} (phase|task_index|review_iter)`
 				await writeState(statePath, state)
 				await log(
-					`run '${slug}' auto-blocked by safety valve. Inspect ${statePath} and resume with /omni-resume.`,
+					`run '${slug}' auto-blocked by safety valve. Inspect ${statePath} and resume with /omnislash:reconnect.`,
 					"warn",
 				)
 				return
@@ -541,7 +560,7 @@ export const OmniPlugin: Plugin = async ({ client, directory }) => {
 					`task ${state.task_index ?? 0}/${state.task_total ?? "?"}, ` +
 					`review iter ${state.review_iter ?? 0}. Next action: ` +
 					`${state.next_action || "read plan.md and state.json in the run dir, continue from there"}. ` +
-					`Do NOT stop — continue the pipeline now, following the pipeline skill. If that ` +
+					`Do NOT stop — continue the pipeline now, following the cast skill. If that ` +
 					`next action is already in flight (an agent you spawned has not returned yet), do ` +
 					`NOT spawn it again — spawn subagents in the foreground so the turn ends only ` +
 					`after they return. If you are ` +

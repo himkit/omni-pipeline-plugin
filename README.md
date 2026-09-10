@@ -1,12 +1,12 @@
-# omni
+# omnislash
 
-Cast once, it slashes to the end on its own. `/omni <idea>` turns an idea into a
+Cast once, it slashes to the end on its own. `/omnislash:cast <idea>` turns an idea into a
 locked spec, then plans, implements test-first, reviews and delivers on an
 `omni/<feature>` branch — without asking you anything in between.
 
 ## Install
 
-Installation differs by host. If you use more than one, install omni in each.
+Installation differs by host. If you use more than one, install omnislash in each.
 Every host installs from this repository through its own plugin mechanism;
 nothing is written into your config directory by hand.
 
@@ -14,22 +14,22 @@ nothing is written into your config directory by hand.
 
 ```text
 /plugin marketplace add himkit/omni-pipeline-plugin
-/plugin install omni@omni-pipeline-plugin
+/plugin install omnislash@omni-pipeline-plugin
 ```
 
 ### Codex
 
 ```bash
 codex plugin marketplace add himkit/omni-pipeline-plugin
-codex plugin add omni@omni-pipeline-plugin
+codex plugin add omnislash@omni-pipeline-plugin
 ```
 
 Codex loads the plugin's `hooks/hooks-codex.json`, so the gatekeeper's Stop
 hook and the session-start reminder run without touching `~/.codex/hooks.json`.
 Subagents need `multi_agent = true` under `[features]` in `~/.codex/config.toml`;
 without it the orchestrator does each role inline. Codex has no slash-command
-surface for plugins — ask for the `pipeline` skill with the intent
-(`omni-status`, `omni-resume`, `omni-abort`).
+surface for plugins — ask for the `cast` skill with the intent
+(`scoreboard`, `reconnect`, `gg`).
 
 ### opencode
 
@@ -39,8 +39,8 @@ Add to the `plugin` array in `opencode.json` and restart:
 { "plugin": ["omni-pipeline@git+https://github.com/himkit/omni-pipeline-plugin.git"] }
 ```
 
-The plugin registers the `omni` agent, the `omni-planner` / `omni-implementer`
-/ `omni-reviewer` subagents, the `/omni*` commands and the `pipeline` skill,
+The plugin registers the `omnislash` agent, the `omnislash-planner` / `omnislash-implementer`
+/ `omnislash-reviewer` subagents, the `/omnislash:*` commands and the `cast` skill,
 and re-prompts the session on `session.idle` in place of a Stop hook. Pin with
 `#v1.0.0`.
 
@@ -54,7 +54,7 @@ Skills-only: no gatekeeper and no subagents. The skill re-reads `state.json`
 every turn and does each role inline. See [`hosts/README.md`](hosts/README.md)
 for the full matrix, what each tier loses, and how to add a host.
 
-A copy of the skill that also exists in `~/.claude/skills/pipeline/` (or a path
+A copy of the skill that also exists in `~/.claude/skills/cast/` (or a path
 already listed in opencode's config) shadows the one this plugin installs.
 Remove the old copy if the plugin's version does not take effect.
 
@@ -62,10 +62,13 @@ Remove the old copy if the plugin's version does not take effect.
 
 | Command | When |
 |---|---|
-| `/omni <idea>` | Start. The only command you normally type. |
-| `/omni-status` | Where is it? Phase, task i/n, review iteration, branch. |
-| `/omni-resume` | The session driving a run died. Take it over here. |
-| `/omni-abort` | Stop a run. Optionally delete branches, worktrees and run dir. |
+| `/omnislash:cast <idea>` | Start. The only command you normally type. |
+| `/omnislash:scoreboard` | Where is it? Phase, task i/n, review iteration, branch. |
+| `/omnislash:reconnect` | The session driving a run died. Take it over here. |
+| `/omnislash:gg` | Stop a run. Optionally delete branches, worktrees and run dir. |
+
+Hosts that do not namespace plugin commands (opencode) expose the same four as
+`/cast`, `/scoreboard`, `/reconnect`, `/gg`.
 
 ## The run
 
@@ -74,7 +77,7 @@ questions. After that it is hands-off until `done` or `blocked`.
 
 ```mermaid
 flowchart TD
-    A["/omni idea"] --> B["Brainstorm<br/>questions, one at a time"]
+    A["/omnislash:cast idea"] --> B["Brainstorm<br/>questions, one at a time"]
     B --> C{"Spec good?"}
     C -- "no, revise" --> B
     C -- "yes" --> D["Setup<br/>per repo: worktree? test command? base branch?<br/>run: max review iters?"]
@@ -92,7 +95,7 @@ flowchart TD
 
 Purple is you. Teal runs itself. A Stop hook keeps the session from going quiet
 mid-pipeline, so the only ways out are `done`, `blocked` (with a reason you can
-act on) or `/omni-abort`.
+act on) or `/omnislash:gg`.
 
 Nothing is ever pushed and no MR is opened — that call stays yours.
 
@@ -100,7 +103,7 @@ Nothing is ever pushed and no MR is opened — that call stays yours.
 
 Crash, kill, context exhaustion, a closed terminal. The run is not lost: git
 holds the work and the run directory holds the state. Open a new session in the
-same repo and run `/omni-resume`.
+same repo and run `/omnislash:reconnect`.
 
 ```mermaid
 sequenceDiagram
@@ -111,7 +114,7 @@ sequenceDiagram
 
     A--xS: dies mid-task
     Note over S: session_id is still claude-A,<br/>a dead session owns the run
-    Note over B: you run /omni-resume
+    Note over B: you run /omnislash:reconnect
     B->>S: reconcile from git, not from state
     B->>S: raise the flag, then stop
     G->>S: flag is fresh, directory matches
@@ -122,7 +125,7 @@ sequenceDiagram
 Two things make that work:
 
 - **The gatekeeper writes `session_id`, never the model.** A session cannot read
-  its own id; the hook can. So `/omni-resume` only raises a flag
+  its own id; the hook can. So `/omnislash:reconnect` only raises a flag
   (`takeover_requested` + `takeover_cwd`) and the hook fills in the name.
 - **Git is the truth.** Task commits carry their number in the scope
   (`feat(omni-task-3): ...`), so the new session reads real progress out of
@@ -134,7 +137,7 @@ exactly like a dead one from the outside, so taking over is always something you
 ask for.
 
 Opening a session in a directory with an unfinished run prints a one-line
-reminder. `/omni-abort` is the off switch.
+reminder. `/omnislash:gg` is the off switch.
 
 ## Where state lives
 
@@ -157,9 +160,9 @@ listed under `targets` in `state.json`; one spec and one plan drive all of
 them, every plan task names the target it touches, and the reviewer diffs
 each. Worktrees then live at `~/.omni-pipeline/worktrees/<run-id>/<target>`.
 Targets are fixed when the run is set up — the gatekeeper answers to a session
-opened in any of them, and `/omni-resume` works from whichever one you are in.
+opened in any of them, and `/omnislash:reconnect` works from whichever one you are in.
 
-Every full-tier host shares this directory, so `/omni-status` in one sees runs started
+Every full-tier host shares this directory, so `/omnislash:scoreboard` in one sees runs started
 by the others. A run is only resumable from the host that started it: each host
 prefixes the session ids it writes (`claude-`, `codex-`, `opencode-`), and the
 gatekeepers refuse a takeover across that boundary.
@@ -175,5 +178,5 @@ on.
 
 `OMNI_HOME` moves this directory for the hooks and the test suite. The prompts
 hardcode `~/.omni-pipeline`, so relocating a live install also means editing
-the paths in `skills/pipeline/SKILL.md`, the `/omni-*` commands, and the
+the paths in `skills/cast/SKILL.md`, the `/omnislash:*` commands, and the
 `external_directory` permission in `.opencode/plugins/omni.ts`.

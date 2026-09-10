@@ -7,21 +7,21 @@ const ROOT = resolve(import.meta.dir, "..")
 test("buildRegistration reads the four agents and gives them opencode roles", () => {
 	const reg = buildRegistration(ROOT)
 	expect(reg.skillsPath).toBe(resolve(ROOT, "skills"))
-	expect(Object.keys(reg.agents).sort()).toEqual(["omni", "omni-implementer", "omni-planner", "omni-reviewer"])
-	expect(reg.agents["omni"].mode).toBe("primary")
-	expect(reg.agents["omni"].permission).toMatchObject({ bash: "allow", edit: "allow", write: "allow", task: "allow" })
-	expect(reg.agents["omni"].prompt).toContain("You are the omni pipeline orchestrator.")
-	expect(reg.agents["omni"].prompt).not.toContain("name: orchestrator")
-	expect(reg.agents["omni-planner"].mode).toBe("subagent")
-	expect(reg.agents["omni-reviewer"].temperature).toBe(0.1)
-	expect(reg.agents["omni-planner"].description).toContain("omni pipeline planner")
+	expect(Object.keys(reg.agents).sort()).toEqual(["omnislash", "omnislash-implementer", "omnislash-planner", "omnislash-reviewer"])
+	expect(reg.agents["omnislash"].mode).toBe("primary")
+	expect(reg.agents["omnislash"].permission).toMatchObject({ bash: "allow", edit: "allow", write: "allow", task: "allow" })
+	expect(reg.agents["omnislash"].prompt).toContain("You are the omnislash orchestrator.")
+	expect(reg.agents["omnislash"].prompt).not.toContain("name: orchestrator")
+	expect(reg.agents["omnislash-planner"].mode).toBe("subagent")
+	expect(reg.agents["omnislash-reviewer"].temperature).toBe(0.1)
+	expect(reg.agents["omnislash-planner"].description).toContain("omnislash planner")
 })
 
 // opencode's `tools` map is a per-tool override on a default-enabled set, so an
 // allow-only map restricts nothing. The denials are the whole point.
 test("each role's tools map denies what that role must not do", () => {
 	const reg = buildRegistration(ROOT)
-	const planner = reg.agents["omni-planner"].tools!
+	const planner = reg.agents["omnislash-planner"].tools!
 	expect(planner.edit).toBe(false)
 	expect(planner.task).toBe(false)
 	expect(planner.webfetch).toBe(false)
@@ -29,7 +29,7 @@ test("each role's tools map denies what that role must not do", () => {
 	expect(planner.bash).toBe(true)
 	expect(planner.write).toBe(true)
 
-	const reviewer = reg.agents["omni-reviewer"].tools!
+	const reviewer = reg.agents["omnislash-reviewer"].tools!
 	expect(reviewer.write).toBe(false)
 	expect(reviewer.edit).toBe(false)
 	expect(reviewer.task).toBe(false)
@@ -37,7 +37,7 @@ test("each role's tools map denies what that role must not do", () => {
 	expect(reviewer.read).toBe(true)
 	expect(reviewer.bash).toBe(true)
 
-	const implementer = reg.agents["omni-implementer"].tools!
+	const implementer = reg.agents["omnislash-implementer"].tools!
 	expect(implementer.task).toBe(false)
 	expect(implementer.webfetch).toBe(false)
 	expect(implementer.read).toBe(true)
@@ -48,18 +48,18 @@ test("each role's tools map denies what that role must not do", () => {
 
 test("the implementer carries its permission block; the planner and reviewer have none", () => {
 	const reg = buildRegistration(ROOT)
-	expect(reg.agents["omni-implementer"].permission).toEqual({ bash: "allow", edit: "allow", write: "allow" })
-	expect(reg.agents["omni-planner"].permission).toBeUndefined()
-	expect(reg.agents["omni-reviewer"].permission).toBeUndefined()
+	expect(reg.agents["omnislash-implementer"].permission).toEqual({ bash: "allow", edit: "allow", write: "allow" })
+	expect(reg.agents["omnislash-planner"].permission).toBeUndefined()
+	expect(reg.agents["omnislash-reviewer"].permission).toBeUndefined()
 })
 
-test("buildRegistration turns commands/*.md into command templates bound to the omni agent", () => {
+test("buildRegistration turns commands/*.md into command templates bound to the omnislash agent", () => {
 	const reg = buildRegistration(ROOT)
-	expect(Object.keys(reg.commands).sort()).toEqual(["omni", "omni-abort", "omni-resume", "omni-status"])
-	expect(reg.commands["omni"].agent).toBe("omni")
-	expect(reg.commands["omni"].template).toContain("$ARGUMENTS")
-	expect(reg.commands["omni"].template).not.toContain("argument-hint")
-	expect(reg.commands["omni-status"].description).toContain("Scoreboard")
+	expect(Object.keys(reg.commands).sort()).toEqual(["cast", "gg", "reconnect", "scoreboard"])
+	expect(reg.commands["cast"].agent).toBe("omnislash")
+	expect(reg.commands["cast"].template).toContain("$ARGUMENTS")
+	expect(reg.commands["cast"].template).not.toContain("argument-hint")
+	expect(reg.commands["scoreboard"].description).toContain("Scoreboard")
 })
 
 test("applyRegistration fills an empty config", () => {
@@ -67,8 +67,8 @@ test("applyRegistration fills an empty config", () => {
 	const warnings: string[] = []
 	applyRegistration(config, buildRegistration(ROOT), (m) => warnings.push(m))
 	expect(config.skills.paths).toEqual([resolve(ROOT, "skills")])
-	expect(Object.keys(config.agent).sort()).toEqual(["omni", "omni-implementer", "omni-planner", "omni-reviewer"])
-	expect(Object.keys(config.command).sort()).toEqual(["omni", "omni-abort", "omni-resume", "omni-status"])
+	expect(Object.keys(config.agent).sort()).toEqual(["omnislash", "omnislash-implementer", "omnislash-planner", "omnislash-reviewer"])
+	expect(Object.keys(config.command).sort()).toEqual(["cast", "gg", "reconnect", "scoreboard"])
 	expect(warnings).toEqual([])
 })
 
@@ -76,16 +76,16 @@ test("applyRegistration leaves a user's own entries alone and warns", () => {
 	const mine = { prompt: "mine", mode: "subagent" }
 	const config: Record<string, any> = {
 		skills: { paths: [resolve(ROOT, "skills")] },
-		agent: { "omni-planner": mine },
-		command: { "omni-status": { template: "mine" } },
+		agent: { "omnislash-planner": mine },
+		command: { "scoreboard": { template: "mine" } },
 	}
 	const warnings: string[] = []
 	applyRegistration(config, buildRegistration(ROOT), (m) => warnings.push(m))
-	expect(config.agent["omni-planner"]).toBe(mine)
-	expect(config.command["omni-status"]).toEqual({ template: "mine" })
+	expect(config.agent["omnislash-planner"]).toBe(mine)
+	expect(config.command["scoreboard"]).toEqual({ template: "mine" })
 	expect(config.skills.paths).toEqual([resolve(ROOT, "skills")])
 	expect(warnings.length).toBe(2)
-	expect(warnings[0]).toContain("omni-planner")
+	expect(warnings[0]).toContain("omnislash-planner")
 })
 
 // The gatekeeper is the reason this plugin exists; registration is a bonus. A
