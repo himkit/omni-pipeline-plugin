@@ -347,7 +347,7 @@ const CAST_TEMPLATE = [
 	"",
 	"Reminders that override any competing habit:",
 	"- Brainstorm is interactive; everything after spec approval + run-config is zero-touch — do not ask the human anything past that point.",
-	"- The plugin re-prompts this session while the run is mid-pipeline. The only exits are done, blocked (with a written reason), or /gg.",
+	"- The plugin re-prompts this session while the run is mid-pipeline. The only exits are done, blocked (with a written reason), or /omnislash:gg.",
 ].join("\n")
 
 function splitFrontmatter(text: string): { meta: Record<string, string>; body: string } {
@@ -374,13 +374,14 @@ export function buildRegistration(root: string = pluginRoot()) {
 	const commands: Record<string, CommandLike> = {}
 	for (const file of readdirSync(path.join(root, "commands")).filter((f) => f.endsWith(".md")).sort()) {
 		const { meta, body } = splitFrontmatter(readFileSync(path.join(root, "commands", file), "utf8"))
-		commands[file.slice(0, -3)] = { template: body, description: meta.description, agent: "omnislash" }
+		commands[`omnislash:${file.slice(0, -3)}`] = { template: body, description: meta.description, agent: "omnislash" }
 	}
 	// The `cast` skill is the start command itself where the host runs skills from
 	// the slash line, so there is no commands/cast.md (a command and a skill may
 	// not share a name there). opencode reaches skills only through the skill
-	// tool, so it gets a command that hands the idea to the skill.
-	commands.cast = { template: CAST_TEMPLATE, description: CAST_DESCRIPTION, agent: "omnislash" }
+	// tool, so it gets a command that hands the idea to the skill. Every command
+	// carries the `omnislash:` prefix so the slash line reads the same on every host.
+	commands["omnislash:cast"] = { template: CAST_TEMPLATE, description: CAST_DESCRIPTION, agent: "omnislash" }
 	return { skillsPath: path.join(root, "skills"), agents, commands }
 }
 

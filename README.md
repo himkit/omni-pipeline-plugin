@@ -67,9 +67,6 @@ Remove the old copy if the plugin's version does not take effect.
 | `/omnislash:reconnect` | The session driving a run died. Take it over here. |
 | `/omnislash:gg` | Stop a run. Optionally delete branches, worktrees and run dir. |
 
-Hosts that do not namespace plugin commands (opencode) expose the same four as
-`/cast`, `/scoreboard`, `/reconnect`, `/gg`.
-
 ## The run
 
 You are asked exactly twice: approve the spec, then answer the setup

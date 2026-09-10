@@ -55,11 +55,11 @@ test("the implementer carries its permission block; the planner and reviewer hav
 
 test("buildRegistration turns commands/*.md into command templates bound to the omnislash agent", () => {
 	const reg = buildRegistration(ROOT)
-	expect(Object.keys(reg.commands).sort()).toEqual(["cast", "gg", "reconnect", "scoreboard"])
-	expect(reg.commands["cast"].agent).toBe("omnislash")
-	expect(reg.commands["cast"].template).toContain("$ARGUMENTS")
-	expect(reg.commands["cast"].template).not.toContain("argument-hint")
-	expect(reg.commands["scoreboard"].description).toContain("Scoreboard")
+	expect(Object.keys(reg.commands).sort()).toEqual(["omnislash:cast", "omnislash:gg", "omnislash:reconnect", "omnislash:scoreboard"])
+	expect(reg.commands["omnislash:cast"].agent).toBe("omnislash")
+	expect(reg.commands["omnislash:cast"].template).toContain("$ARGUMENTS")
+	expect(reg.commands["omnislash:cast"].template).not.toContain("argument-hint")
+	expect(reg.commands["omnislash:scoreboard"].description).toContain("Scoreboard")
 })
 
 test("applyRegistration fills an empty config", () => {
@@ -68,7 +68,7 @@ test("applyRegistration fills an empty config", () => {
 	applyRegistration(config, buildRegistration(ROOT), (m) => warnings.push(m))
 	expect(config.skills.paths).toEqual([resolve(ROOT, "skills")])
 	expect(Object.keys(config.agent).sort()).toEqual(["omnislash", "omnislash-implementer", "omnislash-planner", "omnislash-reviewer"])
-	expect(Object.keys(config.command).sort()).toEqual(["cast", "gg", "reconnect", "scoreboard"])
+	expect(Object.keys(config.command).sort()).toEqual(["omnislash:cast", "omnislash:gg", "omnislash:reconnect", "omnislash:scoreboard"])
 	expect(warnings).toEqual([])
 })
 
@@ -77,12 +77,12 @@ test("applyRegistration leaves a user's own entries alone and warns", () => {
 	const config: Record<string, any> = {
 		skills: { paths: [resolve(ROOT, "skills")] },
 		agent: { "omnislash-planner": mine },
-		command: { "scoreboard": { template: "mine" } },
+		command: { "omnislash:scoreboard": { template: "mine" } },
 	}
 	const warnings: string[] = []
 	applyRegistration(config, buildRegistration(ROOT), (m) => warnings.push(m))
 	expect(config.agent["omnislash-planner"]).toBe(mine)
-	expect(config.command["scoreboard"]).toEqual({ template: "mine" })
+	expect(config.command["omnislash:scoreboard"]).toEqual({ template: "mine" })
 	expect(config.skills.paths).toEqual([resolve(ROOT, "skills")])
 	expect(warnings.length).toBe(2)
 	expect(warnings[0]).toContain("omnislash-planner")

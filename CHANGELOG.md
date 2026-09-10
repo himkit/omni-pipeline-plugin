@@ -4,8 +4,7 @@
 
 Renamed to **omnislash** — the plugin is `omnislash`, the skill is `cast`, and
 the commands are `/omnislash:cast`, `/omnislash:scoreboard`, `/omnislash:reconnect`
-and `/omnislash:gg` (`/cast`, `/scoreboard`, `/reconnect`, `/gg` on hosts that do
-not namespace). `/omni`, `/omni-status`, `/omni-resume`, `/omni-abort` and the
+and `/omnislash:gg` on every host with a slash line. `/omni`, `/omni-status`, `/omni-resume`, `/omni-abort` and the
 `pipeline` skill are gone; opencode's agents are `omnislash`,
 `omnislash-planner`, `omnislash-implementer`, `omnislash-reviewer`. Run state
 (`~/.omni-pipeline/`), the `OMNI_*` variables, the `omni/<feature>` branches and
