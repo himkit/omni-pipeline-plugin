@@ -2,6 +2,15 @@
 
 ## 1.0.0
 
+Renamed to **omnislash** — the plugin is `omnislash`, the skill is `cast`, and
+the commands are `/omnislash:cast`, `/omnislash:scoreboard`, `/omnislash:reconnect`
+and `/omnislash:gg` (`/cast`, `/scoreboard`, `/reconnect`, `/gg` on hosts that do
+not namespace). `/omni`, `/omni-status`, `/omni-resume`, `/omni-abort` and the
+`pipeline` skill are gone; opencode's agents are `omnislash`,
+`omnislash-planner`, `omnislash-implementer`, `omnislash-reviewer`. Run state
+(`~/.omni-pipeline/`), the `OMNI_*` variables, the `omni/<feature>` branches and
+the `(omni-task-N)` commit scopes keep their names.
+
 Every host now installs omni through its own plugin mechanism, and the `npx`
 installer is gone. Claude Code and Codex install from the GitHub marketplace;
 opencode installs the repository as a plugin from `opencode.json`; every other
@@ -17,7 +26,7 @@ single orchestrator prompt. The prompts no longer name hosts; a test keeps it so
 
 Removed: `install.mjs`, `~/.omni-pipeline/src`, `.opencode-plugin/`. Run state
 in `~/.omni-pipeline/runs/` and worktrees are untouched; a run in flight before
-the upgrade resumes with `/omni-resume` afterwards.
+the upgrade resumes with `/omnislash:reconnect` afterwards.
 
 If you installed a previous version with `npx github:himkit/omni-pipeline-plugin`,
 clean up once by hand — the installer's `--uninstall` went with it:

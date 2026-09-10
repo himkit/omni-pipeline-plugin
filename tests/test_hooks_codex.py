@@ -17,7 +17,7 @@ def load(rel):
 class CodexManifestTest(unittest.TestCase):
     def test_manifest_points_at_skills_and_the_codex_hook_file(self):
         m = load(".codex-plugin/plugin.json")
-        self.assertEqual(m["name"], "omni")
+        self.assertEqual(m["name"], "omnislash")
         self.assertEqual(m["skills"], "./skills/")
         self.assertEqual(m["hooks"], "./hooks/hooks-codex.json")
 

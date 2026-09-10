@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""omni session-start notice — says a run is stranded in this directory.
+"""omnislash session-start notice — says a run is stranded in this directory.
 
 Read-only by design: it never writes state.json and never claims a run. Its
 whole job is turning "the human has to remember there is a dead run" into
@@ -100,9 +100,9 @@ def main():
     if not lines:
         return
     print(json.dumps({"systemMessage":
-                      "[omni] Unfinished run(s) for this directory:\n"
+                      "[omnislash] Unfinished run(s) for this directory:\n"
                       + "\n".join(lines)
-                      + "\nRun /omni-resume to take one over."}))
+                      + "\nRun /omnislash:reconnect to take one over."}))
 
 
 if __name__ == "__main__":

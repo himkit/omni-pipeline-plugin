@@ -1,9 +1,9 @@
 ---
-description: Resume an interrupted or blocked omni run in this session
+description: Resume an interrupted or blocked omnislash run in this session
 argument-hint: [run-id]
 ---
 
-Invoke the `pipeline` skill (namespaced `omni:pipeline` where the host
+Invoke the `cast` skill (namespaced `omnislash:cast` where the host
 namespaces plugin skills) and follow its **Resume protocol** for the
 run matching `$ARGUMENTS` (no argument: the single non-terminal run under
 `~/.omni-pipeline/runs/`; several candidates: list them and ask which).

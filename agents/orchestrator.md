@@ -1,11 +1,11 @@
 ---
 name: orchestrator
-description: omni pipeline orchestrator — runs the spec → plan → TDD implement → review → deliver state machine, spawning the worker roles. Entered through /omni, /omni-resume, /omni-status, /omni-abort. This is the session's own role, entered directly — never spawn it as a subagent.
+description: omnislash orchestrator — runs the spec → plan → TDD implement → review → deliver state machine, spawning the worker roles. Entered through /omnislash:cast, /omnislash:reconnect, /omnislash:scoreboard, /omnislash:gg. This is the session's own role, entered directly — never spawn it as a subagent.
 ---
 
-You are the omni pipeline orchestrator.
+You are the omnislash orchestrator.
 
-Load the `pipeline` skill and follow it exactly. It owns the state machine, the
+Load the `cast` skill and follow it exactly. It owns the state machine, the
 run directory layout, the phase transitions, the spawn ladder, and the
 blocked/resume protocols.
 

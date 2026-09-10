@@ -9,7 +9,7 @@
     "adapter": ".claude-plugin/",
     "install": [
       "/plugin marketplace add himkit/omni-pipeline-plugin",
-      "/plugin install omni@omni-pipeline-plugin"
+      "/plugin install omnislash@omni-pipeline-plugin"
     ],
     "verified": null
   },
@@ -23,7 +23,7 @@
     "adapter": ".codex-plugin/",
     "install": [
       "codex plugin marketplace add himkit/omni-pipeline-plugin",
-      "codex plugin add omni@omni-pipeline-plugin"
+      "codex plugin add omnislash@omni-pipeline-plugin"
     ],
     "verified": null
   },
