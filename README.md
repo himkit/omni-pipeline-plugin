@@ -176,4 +176,4 @@ on.
 `OMNI_HOME` moves this directory for the hooks and the test suite. The prompts
 hardcode `~/.omni-pipeline`, so relocating a live install also means editing
 the paths in `skills/cast/SKILL.md`, the `/omnislash:*` commands, and the
-`external_directory` permission in `.opencode/plugins/omni.ts`.
+`external_directory` permission in `.opencode/src/omni.ts`.

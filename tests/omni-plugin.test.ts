@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { resolve } from "node:path"
-import { applyRegistration, buildRegistration, OmniPlugin } from "../.opencode/plugins/omni.ts"
+import { applyRegistration, buildRegistration, OmniPlugin } from "../.opencode/src/omni.ts"
 
 const ROOT = resolve(import.meta.dir, "..")
 

@@ -8,7 +8,7 @@ import {
 	runDirs,
 	sameOwner,
 	takeoverClaim,
-} from "../.opencode/plugins/omni.ts"
+} from "../.opencode/src/omni.ts"
 
 test("qualify namespaces a bare id and leaves a qualified one alone", () => {
 	expect(qualify("s1")).toBe("opencode-s1")

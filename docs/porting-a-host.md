@@ -35,8 +35,11 @@ Copy the closest reference:
   reference whatever plugin-root variable the host exports. Never write into
   the user's config directory; the manifest is the only thing you ship.
 - **In-process plugin host** (JS/TS lifecycle callbacks): copy
-  `.opencode/plugins/omni.ts`. Keep the pure helpers and `buildRegistration`;
-  change only the host API calls and the `ROLES` table.
+  `.opencode/src/omni.ts`. Keep the pure helpers and `buildRegistration`;
+  change only the host API calls and the `ROLES` table. Ship the entry point as
+  built JavaScript (`.opencode/plugins/omni.js`, `bun run build`) exporting the
+  plugin alone — see the comments in `tests/omni-entry.test.ts` for the two host
+  constraints that forces.
 - **Manifest-only host** that consumes a Claude-compatible plugin (Factory
   Droid, Copilot CLI): often no files at all — verify, then add the registry
   entry and the README row.
