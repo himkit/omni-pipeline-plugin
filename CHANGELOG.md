@@ -38,10 +38,8 @@ rm -rf ~/.omni-pipeline/src
 
 Then install per host as the README says.
 
-## Unreleased
-
-Cheaper runs, same checks. Changes to how the orchestrator spends tokens,
-none to what gets verified:
+Also in this release — cheaper runs, same checks. Changes to how the
+orchestrator spends tokens, none to what gets verified:
 
 - The implementer no longer receives the `plan.md` path. The orchestrator
   pastes the text of the one task (or the review findings) into the prompt,
