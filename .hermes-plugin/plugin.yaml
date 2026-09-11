@@ -1,0 +1,13 @@
+name: omnislash
+version: 1.0.0
+description: >-
+  Autonomous feature pipeline: brainstorm and lock a spec interactively, then
+  plan → implement (TDD) → review loop → deliver on a feature branch with zero
+  human touch, enforced by a state machine at the verify gate.
+author: himkit
+license: MIT
+homepage: https://github.com/himkit/omni-pipeline-plugin
+tags: [automation, pipeline, tdd, subagents, workflow, spec-driven]
+provides_hooks:
+  - pre_verify
+  - pre_llm_call

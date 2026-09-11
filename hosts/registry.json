@@ -27,6 +27,19 @@
     ],
     "verified": null
   },
+  "hermes": {
+    "label": "Hermes Agent",
+    "tier": "full",
+    "prefix": "hermes-",
+    "enforcer": "verify-hook",
+    "subagents": "inline-prompt",
+    "commands": "skills-only",
+    "adapter": ".hermes-plugin/",
+    "install": [
+      "hermes plugins install himkit/omni-pipeline-plugin"
+    ],
+    "verified": null
+  },
   "opencode": {
     "label": "opencode",
     "tier": "full",

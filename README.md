@@ -31,6 +31,27 @@ without it the orchestrator does each role inline. Codex has no slash-command
 surface for plugins — ask for the `cast` skill with the intent
 (`scoreboard`, `reconnect`, `gg`).
 
+### Hermes Agent
+
+```bash
+hermes plugins install himkit/omni-pipeline-plugin
+```
+
+Hermes has no Stop hook, so the plugin runs the same gatekeeper at `pre_verify`
+— the gate just before the agent accepts a final answer — and the session-start
+reminder at `pre_llm_call`. That gate fires only on a turn where the agent
+edited code, and Hermes caps consecutive continues per turn, so raise the cap
+and let the gatekeeper's own safety valve be the bound:
+
+```bash
+hermes config set agent.max_verify_nudges 20
+```
+
+Subagents go through `delegate_task` with `agents/<role>.md` as the prompt.
+Hermes has no slash-command surface for a plugin's prompts — load the skill
+namespaced (`skill_view("omnislash:cast")`) or ask for the `cast` skill with
+the intent (`scoreboard`, `reconnect`, `gg`).
+
 ### opencode
 
 Add to the `plugin` array in `opencode.json` and restart:
@@ -161,8 +182,8 @@ opened in any of them, and `/omnislash:reconnect` works from whichever one you a
 
 Every full-tier host shares this directory, so `/omnislash:scoreboard` in one sees runs started
 by the others. A run is only resumable from the host that started it: each host
-prefixes the session ids it writes (`claude-`, `codex-`, `opencode-`), and the
-gatekeepers refuse a takeover across that boundary.
+prefixes the session ids it writes (`claude-`, `codex-`, `hermes-`,
+`opencode-`), and the gatekeepers refuse a takeover across that boundary.
 
 Upgrading from a version that stored state in `~/.claude/omni-plugins/`? Move
 your runs once — there is no automatic migration:

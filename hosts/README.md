@@ -11,6 +11,7 @@ is checked against it by `tests/test_registry.py`.
 |---|---|---|---|---|---|
 | Claude Code | full | Stop hook blocks the stop | `omnislash:planner` etc. | `/omnislash:cast`, `/omnislash:scoreboard`, `/omnislash:reconnect`, `/omnislash:gg` | not yet — 2026-09-09 hook probe passed (`claude -p --plugin-dir`, fake run: registry-driven gatekeeper blocked the stop once); no end-to-end run recorded |
 | Codex | full | Stop hook blocks the stop | `agents/<role>.md` as the `spawn_agent` prompt | none — ask for the `cast` skill with the intent | not yet — `codex plugin add` installs it and ships `hooks/hooks-codex.json`; the Stop hook has not been seen firing in a logged-in Codex session |
+| Hermes Agent | full | plugin continues the agent at the `pre_verify` gate | `agents/<role>.md` as the `delegate_task` prompt | none — ask for the `cast` skill with the intent, or `skill_view("omnislash:cast")` | not yet — 2026-09-11 adapter written against Hermes v0.21.1 (`hermes plugins doctor` clean, gatekeeper bridged through `pre_verify`); no end-to-end run recorded |
 | opencode | full | plugin re-prompts on `session.idle` | `omnislash-planner` etc. | `/omnislash:cast`, `/omnislash:scoreboard`, `/omnislash:reconnect`, `/omnislash:gg` | not yet — 2026-09-09 registration verified in an isolated HOME (agents, commands, skills path, permissions); idle nudge not observed |
 | everything else | skills-only | none — the skill self-checks state each turn | inline, sequential | ask for the `cast` skill with the intent | — |
 
@@ -32,6 +33,30 @@ codex plugin add omnislash@omni-pipeline-plugin
 
 Subagents need `multi_agent = true` under `[features]` in `~/.codex/config.toml`.
 Without it the orchestrator does every role inline.
+
+**Hermes Agent**
+
+```bash
+hermes plugins install himkit/omni-pipeline-plugin
+```
+
+Hermes has no Stop hook. The adapter bridges the same `hooks/gatekeeper.py`
+onto `pre_verify`, the one hook whose return value keeps the agent going, and
+onto `pre_llm_call` for the session-start reminder. Two limits follow from that:
+
+- `pre_verify` fires only on a turn where the agent edited code, so a turn that
+  only spawned an agent or read files is not gated. The skill's own state
+  re-read is what continues the run there.
+- consecutive continues inside one turn are capped by `agent.max_verify_nudges`
+  (default 3). The gatekeeper's 15-block safety valve is the intended bound, so
+  raise the cap:
+
+```bash
+hermes config set agent.max_verify_nudges 20
+```
+
+Skills load namespaced: `skill_view("omnislash:cast")`, or ask for the `cast`
+skill with the intent.
 
 **opencode** — add to `opencode.json` (global or project) and restart:
 
@@ -68,6 +93,7 @@ npx skills add himkit/omni-pipeline-plugin
 |---|---|---|
 | Claude Code | `run_in_background: false` on `Agent` | a background spawn ends the turn and the Stop hook re-blocks every turn |
 | Codex | `spawn_agent {fork_turns: "none"}` | children get a clean context, not this transcript |
+| Hermes Agent | `delegate_task {role: "leaf"}` | the child is one role, not another orchestrator; `delegate_task` is synchronous, so the turn already ends after it returns |
 | opencode | `task` is synchronous | await it; `omnislash-implementer` must go through `task`, never a read-only delegation tool |
 
 ## Ownership

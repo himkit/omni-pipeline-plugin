@@ -1,7 +1,7 @@
 {
   "name": "omni-pipeline",
   "version": "1.0.0",
-  "description": "Autonomous feature pipeline for Claude Code, Codex and opencode: brainstorm a spec, then plan → implement (TDD) → review → deliver on a feature branch with zero human touch.",
+  "description": "Autonomous feature pipeline for Claude Code, Codex, Hermes Agent and opencode: brainstorm a spec, then plan \u2192 implement (TDD) \u2192 review \u2192 deliver on a feature branch with zero human touch.",
   "type": "module",
   "main": ".opencode/plugins/omni.js",
   "scripts": {
@@ -11,13 +11,14 @@
     "node": ">=18"
   },
   "files": [
+    ".hermes-plugin",
     ".opencode",
+    "README.md",
     "agents",
     "commands",
     "hooks",
     "hosts",
-    "skills",
-    "README.md"
+    "skills"
   ],
   "repository": {
     "type": "git",
