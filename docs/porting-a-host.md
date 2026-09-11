@@ -40,6 +40,12 @@ Copy the closest reference:
   built JavaScript (`.opencode/plugins/omni.js`, `bun run build`) exporting the
   plugin alone — see the comments in `tests/omni-entry.test.ts` for the two host
   constraints that forces.
+- **In-process Python plugin host** (`register(ctx)` callbacks, no shell hook
+  manifest): copy `.hermes-plugin/`. It registers the shipped skills and runs
+  the same two `hooks/*.py` as subprocesses with `OMNI_HOST=<id>` set; change
+  only the hook names and the plugin manifest. Find the host's one hook whose
+  return value can keep the agent going — many accept the Claude-Code Stop
+  shape, in which case the gatekeeper's stdout needs no translation.
 - **Manifest-only host** that consumes a Claude-compatible plugin (Factory
   Droid, Copilot CLI): often no files at all — verify, then add the registry
   entry and the README row.

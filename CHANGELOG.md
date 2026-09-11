@@ -23,6 +23,16 @@ and drives `KNOWN_HOSTS` in both gatekeepers; `.codex-plugin/plugin.json` plus
 commands and skill from the plugin's own files. `agents/orchestrator.md` is the
 single orchestrator prompt. The prompts no longer name hosts; a test keeps it so.
 
+New host: **Hermes Agent**, full tier. `.hermes-plugin/` is a Python plugin
+that bridges `hooks/gatekeeper.py` and `hooks/session_start.py` onto the two
+Hermes hooks that can carry them — `pre_verify`, whose return value keeps the
+agent going and which accepts the Claude-Code Stop shape, and `pre_llm_call`
+for the session-start reminder. Skills register namespaced
+(`skill_view("omnislash:cast")`); subagents go through the synchronous
+`delegate_task` with `agents/<role>.md` as the prompt. `pre_verify` fires only
+on a turn that edited code, and Hermes caps consecutive continues per turn
+(`agent.max_verify_nudges`, default 3) — `hosts/README.md` says what to raise.
+
 Removed: `install.mjs`, `~/.omni-pipeline/src`, `.opencode-plugin/`. Run state
 in `~/.omni-pipeline/runs/` and worktrees are untouched; a run in flight before
 the upgrade resumes with `/omnislash:reconnect` afterwards.
