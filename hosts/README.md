@@ -11,7 +11,7 @@ is checked against it by `tests/test_registry.py`.
 |---|---|---|---|---|---|
 | Claude Code | full | Stop hook blocks the stop | `omnislash:planner` etc. | `/omnislash:cast`, `/omnislash:scoreboard`, `/omnislash:reconnect`, `/omnislash:gg` | not yet — 2026-09-09 hook probe passed (`claude -p --plugin-dir`, fake run: registry-driven gatekeeper blocked the stop once); no end-to-end run recorded |
 | Codex | full | Stop hook blocks the stop | `agents/<role>.md` as the `spawn_agent` prompt | none — ask for the `cast` skill with the intent | not yet — `codex plugin add` installs it and ships `hooks/hooks-codex.json`; the Stop hook has not been seen firing in a logged-in Codex session |
-| Hermes Agent | full | plugin continues the agent at the `pre_verify` gate | `agents/<role>.md` as the `delegate_task` prompt | none — ask for the `cast` skill with the intent, or `skill_view("omnislash:cast")` | not yet — 2026-09-11 adapter written against Hermes v0.21.1 (`hermes plugins doctor` clean, gatekeeper bridged through `pre_verify`); no end-to-end run recorded |
+| Hermes Agent | full | plugin continues the agent at the `pre_verify` gate | `agents/<role>.md` as the `delegate_task` prompt | none — ask for the `cast` skill with the intent, or `skill_view("omnislash:cast")` | not yet — 2026-09-11 on Hermes v0.21.1: installed into an isolated `HERMES_HOME`, `hermes plugins doctor` clean (2 hooks), the `cast` skill registered, and `pre_verify` returned the real gatekeeper's continue directive for a fake run; no end-to-end run recorded |
 | opencode | full | plugin re-prompts on `session.idle` | `omnislash-planner` etc. | `/omnislash:cast`, `/omnislash:scoreboard`, `/omnislash:reconnect`, `/omnislash:gg` | not yet — 2026-09-09 registration verified in an isolated HOME (agents, commands, skills path, permissions); idle nudge not observed |
 | everything else | skills-only | none — the skill self-checks state each turn | inline, sequential | ask for the `cast` skill with the intent | — |
 
@@ -38,7 +38,12 @@ Without it the orchestrator does every role inline.
 
 ```bash
 hermes plugins install himkit/omni-pipeline-plugin
+hermes plugins enable omni-pipeline-plugin/.hermes-plugin
 ```
+
+The clone is the plugin root and `.hermes-plugin/` is the manifest inside it,
+so the id to enable is the nested one; `hermes plugins list` shows it as
+`omnislash`.
 
 Hermes has no Stop hook. The adapter bridges the same `hooks/gatekeeper.py`
 onto `pre_verify`, the one hook whose return value keeps the agent going, and

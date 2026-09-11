@@ -35,7 +35,11 @@ surface for plugins — ask for the `cast` skill with the intent
 
 ```bash
 hermes plugins install himkit/omni-pipeline-plugin
+hermes plugins enable omni-pipeline-plugin/.hermes-plugin
 ```
+
+The adapter lives in `.hermes-plugin/` inside the clone, so the id to enable is
+the nested one — `hermes plugins list` shows it as `omnislash`.
 
 Hermes has no Stop hook, so the plugin runs the same gatekeeper at `pre_verify`
 — the gate just before the agent accepts a final answer — and the session-start
